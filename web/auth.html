@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Дәптер AI — вход</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Caveat:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  /* Вход и регистрация: одна карточка по центру, переключатель режимов сверху */
+  :root { --bg:#f5f8fc; --paper:#ffffff; --fg:#1b2333; --muted:#566074; --line:#dbe3ee; --brand:#1f4fb4; --brand-soft:#e8effb; --bad:#c8382f; --ok:#1e8e4e;
+          --f:"Onest","Golos Text",system-ui,"Segoe UI",Arial,sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 var(--f); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 40px; }
+  .logo { font-weight: 700; font-size: 22px; color: var(--brand); text-decoration: none; margin-bottom: 18px; }
+  .card { width: min(440px, 100%); background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--bg); padding: 4px; border-radius: 10px; }
+  .tabs a { text-align: center; text-decoration: none; padding: 9px; border-radius: 8px; color: var(--muted); font-weight: 600; }
+  .tabs a.on { background: var(--brand); color: #fff; }
+  h1 { font-size: 22px; margin: 4px 0 0; }
+  .hint { color: var(--muted); font-size: 14px; margin: 0; }
+  form { display: flex; flex-direction: column; gap: 12px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
+  input { font: 16px var(--f); color: var(--fg); padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%; background: #fff; }
+  input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+  input.bad { border-color: var(--bad); }
+  .err { color: var(--bad); font-size: 13px; min-height: 0; }
+  .err:empty { display: none; }
+  .pw { position: relative; }
+  .pw button { position: absolute; right: 6px; bottom: 6px; background: none; border: 0; color: var(--brand); font: 600 13px var(--f); cursor: pointer; padding: 6px; }
+  button.main { font: 600 17px var(--f); border: 0; border-radius: 10px; padding: 13px; background: var(--brand); color: #fff; cursor: pointer; }
+  button.main:disabled { opacity: .6; cursor: wait; }
+  .demo { font: 600 15px var(--f); border: 1px solid var(--line); border-radius: 10px; padding: 11px; background: #fff; color: var(--fg); cursor: pointer; }
+  .alert { background: #fdecea; color: var(--bad); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+  .alert.info { background: var(--brand-soft); color: var(--brand); }
+  .alert:empty { display: none; }
+  .or { text-align: center; color: var(--muted); font-size: 13px; }
+  [hidden] { display: none !important; }
+  .logo { font: 700 30px/1 'Caveat', cursive; color: var(--brand); }
+  body { background: linear-gradient(rgba(31,79,180,.07) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(90deg, rgba(31,79,180,.07) 1px, transparent 1px) 0 0 / 24px 24px, var(--bg); }
+  .auth-top { width: min(440px, 100%); display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .auth-top .logo { margin: 0; order: -1; }
+  .lang-btn { font: 600 14px var(--f); border: 1px solid var(--line); background: #fff; color: var(--brand); border-radius: 999px; padding: 8px 14px; min-height: 40px; cursor: pointer; order: 2; }
+</style>
+</head>
+<body>
+<div class="auth-top" data-lang-slot><a class="logo" href="/">📒 Дәптер AI</a></div>
+<div class="card">
+  <nav class="tabs" aria-label="Вход или регистрация">
+    <a href="/login" id="tLogin">Вход</a>
+    <a href="/register" id="tReg">Регистрация</a>
+  </nav>
+  <div class="alert" id="alert" role="alert"></div>
+
+  <!-- Вход -->
+  <form id="loginForm" novalidate hidden>
+    <h1>Войти в магазин</h1>
+    <label>Email<input id="lEmail" type="email" spellcheck="false" autocomplete="email" required placeholder="aigul@gmail.com"></label>
+    <label class="pw">Пароль<input id="lPass" type="password" autocomplete="current-password" required><button type="button" data-show="lPass">Показать</button></label>
+    <button class="main" type="submit">Войти</button>
+    <div class="or">или</div>
+    <button class="demo" type="button" data-demo>Посмотреть демо-магазин «Береке»</button>
+  </form>
+
+  <!-- Регистрация -->
+  <form id="regForm" novalidate hidden>
+    <h1>Новый магазин</h1>
+    <p class="hint">После регистрации откроется пустой рабочий стол: прайс, покупатели и долги вы заполните сами. Остальные данные магазина — в «Настройках».</p>
+    <label>ФИО<input id="rName" autocomplete="name" required placeholder="Сейтова Айгүл Ерланқызы"><span class="err" data-for="rName"></span></label>
+    <label>Email<input id="rEmail" type="email" spellcheck="false" autocomplete="email" required placeholder="aigul@gmail.com"><span class="err" data-for="rEmail"></span></label>
+    <label>Телефон<input id="rPhone" type="tel" autocomplete="tel" required placeholder="+7 701 234 56 78"><span class="err" data-for="rPhone"></span></label>
+    <label>Название магазина<input id="rShop" required placeholder="Береке дүкені"><span class="err" data-for="rShop"></span></label>
+    <label class="pw">Пароль<input id="rPass" type="password" autocomplete="new-password" required><button type="button" data-show="rPass">Показать</button><span class="err" data-for="rPass"></span></label>
+    <label>Повторите пароль<input id="rPass2" type="password" autocomplete="new-password" required><span class="err" data-for="rPass2"></span></label>
+    <p class="hint">Пароль — не короче 8 символов, буквы и цифры.</p>
+    <button class="main" type="submit">Создать аккаунт</button>
+  </form>
+</div>
+
+<script src="/static/i18n.js?v=13"></script>
+<script>
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const next = params.get('next') === '/scan' ? '/scan' : '/app';
+const isReg = location.pathname.startsWith('/register');
+$('loginForm').hidden = isReg; $('regForm').hidden = !isReg;
+$(isReg ? 'tReg' : 'tLogin').classList.add('on');
+document.title = 'Дәптер AI — ' + (isReg ? 'регистрация' : 'вход');
+if (params.get('expired')) { $('alert').className = 'alert info'; $('alert').textContent = 'QR-код сканера устарел. Войдите или откройте новый QR на кассе.'; }
+
+// Уже вошли — сразу в кабинет
+fetch('/api/auth/state').then(r => r.json()).then(s => { if (s.logged) location.replace(next); }).catch(() => {});
+
+async function post(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : 'Проверьте поля формы');
+  return d;
+}
+function showError(text) { $('alert').className = 'alert'; $('alert').textContent = text; }
+
+document.querySelectorAll('[data-show]').forEach(b => b.onclick = () => {
+  const inp = $(b.dataset.show); const hide = inp.type === 'text';
+  inp.type = hide ? 'password' : 'text'; b.textContent = hide ? 'Показать' : 'Скрыть';
+});
+document.querySelectorAll('[data-demo]').forEach(b => b.onclick = async () => {
+  try { await post('/api/auth/demo'); location.href = next; } catch (e) { showError(e.message); }
+});
+
+// ---------- проверки (такие же, как на сервере) ----------
+const EMAIL = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+function phoneOk(v) {
+  let d = v.replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '8') d = '7' + d.slice(1);
+  if (d.length === 10 && d[0] === '7') d = '7' + d;
+  return d.length === 11 && d.startsWith('77');
+}
+const rules = {
+  rName: v => v.trim().split(/\s+/).length >= 2 ? '' : 'Укажите фамилию и имя полностью',
+  rEmail: v => EMAIL.test(v.trim()) && !v.includes('..') ? '' : 'Введите правильный email, например aigul@gmail.com',
+  rPhone: v => phoneOk(v) ? '' : 'Казахстанский номер, например +7 701 234 56 78',
+  rShop: v => v.trim() ? '' : 'Введите название магазина',
+  rPass: v => v.length < 8 ? 'Не короче 8 символов' : !(/\d/.test(v) && /\p{L}/u.test(v)) ? 'Нужны и буквы, и цифры' : '',
+  rPass2: v => v === $('rPass').value ? '' : 'Пароли не совпадают',
+};
+function check(id) {
+  const msg = rules[id]($(id).value);
+  $(id).classList.toggle('bad', !!msg);
+  document.querySelector(`[data-for="${id}"]`).textContent = msg;
+  return !msg;
+}
+Object.keys(rules).forEach(id => $(id).addEventListener('blur', () => check(id)));
+
+$('regForm').onsubmit = async e => {
+  e.preventDefault();
+  const ok = Object.keys(rules).map(check).every(Boolean);
+  if (!ok) { document.querySelector('#regForm .bad')?.focus(); return; }
+  const btn = e.target.querySelector('button.main'); btn.disabled = true; btn.textContent = 'Создаём…';
+  try {
+    await post('/api/auth/register', { full_name: $('rName').value, email: $('rEmail').value, phone: $('rPhone').value,
+      shop_name: $('rShop').value, password: $('rPass').value });
+    location.href = '/app?welcome=1';
+  } catch (err) { showError(err.message); btn.disabled = false; btn.textContent = 'Создать аккаунт'; }
+};
+
+$('loginForm').onsubmit = async e => {
+  e.preventDefault();
+  if (!$('lEmail').value.trim() || !$('lPass').value) { showError('Введите email и пароль'); return; }
+  const btn = e.target.querySelector('button.main'); btn.disabled = true; btn.textContent = 'Входим…';
+  try { await post('/api/auth/login', { email: $('lEmail').value, password: $('lPass').value }); location.href = next; }
+  catch (err) { showError(err.message); btn.disabled = false; btn.textContent = 'Войти'; }
+};
+</script>
+</body>
+</html>

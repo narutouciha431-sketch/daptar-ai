@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Дәптер AI — сканер</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Caveat:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  /* Сканер для телефона: камера на весь экран сверху, результат и режим снизу */
+  :root { --bg:#f5f8fc; --surface:#ffffff; --fg:#1b2333; --muted:#566074; --line:#dbe3ee; --brand:#1f4fb4; --ok:#1e8e4e; --bad:#c8382f; --f:"Onest","Golos Text",system-ui,"Segoe UI",Arial,sans-serif; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: #fff; font: 16px/1.45 var(--f); min-height: 100%; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px; }
+  header b { font-size: 18px; }
+  .live { font-size: 12px; color: #c9b3ad; }
+  .live.on { color: #7cc08a; }
+  #reader { width: 100%; max-width: 520px; margin: 0 auto; background: #000; min-height: 240px; }
+  #reader video { width: 100% !important; }
+  .panel { background: var(--surface); color: var(--fg); border-radius: 16px 16px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)); margin-top: 12px; display: flex; flex-direction: column; gap: 12px; max-width: 520px; margin-inline: auto; }
+  .mode { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #f3efed; border-radius: 10px; padding: 4px; }
+  .mode button { border: 0; background: transparent; padding: 10px; border-radius: 8px; font: 600 15px var(--f); color: var(--muted); }
+  .mode button.on { background: var(--brand); color: #fff; }
+  .result { min-height: 54px; font-size: 18px; }
+  .result.ok { color: var(--ok); }
+  .result.bad { color: var(--bad); }
+  form { display: flex; flex-direction: column; gap: 8px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  input { font: 18px var(--f); padding: 12px; border: 1px solid var(--line); border-radius: 8px; width: 100%; }
+  button.main { border: 0; border-radius: 10px; padding: 14px; font: 600 17px var(--f); background: var(--brand); color: #fff; }
+  button.ghost { border: 1px solid var(--line); background: #fff; color: var(--brand); border-radius: 10px; padding: 12px; font: 600 15px var(--f); }
+  ul { list-style: none; margin: 0; padding: 0; font-size: 14px; color: var(--muted); }
+  li { padding: 6px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
+  .hint { font-size: 13px; color: var(--muted); margin: 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header><b>📒 Дәптер · сканер</b><span class="live" id="live">● офлайн</span></header>
+<div id="reader"></div>
+
+<div class="panel">
+  <div class="mode" role="tablist" aria-label="Режим">
+    <button id="mCart" class="on" type="button" role="tab">В кассу</button>
+    <button id="mPrice" type="button" role="tab">В прайс</button>
+  </div>
+  <div class="result" id="result">Наведите камеру на штрихкод товара.</div>
+
+  <form id="newForm" hidden>
+    <p class="hint">Этого штрихкода нет в прайсе. Добавьте товар — потом он будет находиться сразу.</p>
+    <button class="ghost" type="button" id="nPhoto">📷 Фото ценника — ИИ заполнит сам</button>
+    <img id="nPreview" alt="Фото товара" width="320" height="240" hidden style="max-width:100%;border-radius:8px">
+    <p class="hint" id="nAi"></p>
+    <label>Штрихкод<input id="nBarcode" readonly placeholder="без штрихкода…"></label>
+    <label>Название<input id="nName" required placeholder="Нан"></label>
+    <label>Цена, ₸<input id="nPrice" type="number" min="0" inputmode="numeric" required></label>
+    <button class="main" type="submit">Сохранить в прайс</button>
+    <button class="ghost" type="button" id="nCancel">Отмена</button>
+  </form>
+
+  <button class="ghost" type="button" id="noBarcode">📷 Добавить товар без штрихкода (по фото)</button>
+  <form id="manual">
+    <label>Или введите штрихкод вручную<input id="manualCode" inputmode="numeric" placeholder="4870000000000"></label>
+  </form>
+  <ul id="history"></ul>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const money = n => new Intl.NumberFormat('ru-RU').format(n) + ' ₸';
+let mode = new URLSearchParams(location.search).get('mode') === 'price' ? 'price' : 'cart';
+let ws, last = { code: '', seen: 0 }, paused = false;
+// Рамка камеры: белая — ищем, жёлтая — код пойман и проверяется, зелёная — товар добавлен
+function frame(color) { document.querySelectorAll('#qr-shaded-region > div').forEach(d => { d.style.backgroundColor = color; }); }
+const FRAME = { idle: '#ffffff', busy: '#f2b705', ok: '#1e8e4e', bad: '#e0574f' };
+const outbox = []; // сканы, сделанные без связи с кассой
+
+function sendScan(barcode) {
+  const msg = JSON.stringify({ type: 'scan', barcode });
+  if (ws && ws.readyState === WebSocket.OPEN) { ws.send(msg); return true; }
+  outbox.push(msg);
+  return false;
+}
+
+// ---------- связь с ноутбуком ----------
+function connect() {
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+  ws.onopen = () => {
+    $('live').textContent = '● связь с кассой'; $('live').classList.add('on');
+    while (outbox.length) ws.send(outbox.shift()); // досылаем сканы, сделанные без связи
+  };
+  ws.onclose = e => { $('live').textContent = '● офлайн'; $('live').classList.remove('on'); if (e.code === 4401) { location.href = '/login?next=/scan'; return; } setTimeout(connect, 2000); };
+}
+connect();
+
+function show(text, cls = '') { $('result').textContent = text; $('result').className = 'result ' + cls; }
+function vibrate() { if (navigator.vibrate) navigator.vibrate(80); }
+function addHistory(text) {
+  const li = document.createElement('li');
+  li.innerHTML = `<span></span><span>${new Date().toTimeString().slice(0, 5)}</span>`;
+  li.firstChild.textContent = text;
+  $('history').prepend(li);
+  while ($('history').children.length > 6) $('history').lastChild.remove();
+}
+
+// ---------- обработка штрихкода ----------
+async function handle(code) {
+  code = String(code).trim();
+  if (!code) return;
+  const now = Date.now();
+  // Тот же товар считаем снова, только если его убрали из кадра хотя бы на 0,7 с — без ложных повторов
+  if (code === last.code) { const gap = now - last.seen; last.seen = now; if (paused || gap < 700) return; }
+  else if (paused) return;
+  last = { code, seen: now };
+  paused = true; frame(FRAME.busy);
+  vibrate();
+  const res = await fetch('/api/products/barcode/' + encodeURIComponent(code)).catch(() => null);
+  if (!res) { frame(FRAME.bad); show('Нет связи с сервером', 'bad'); setTimeout(() => { frame(FRAME.idle); paused = false; }, 900); return; }
+  if (res.status === 401) { location.href = '/login?next=/scan'; return; }
+  if (res.ok) {
+    frame(FRAME.ok);
+    setTimeout(() => { frame(FRAME.idle); paused = false; }, 900); // пауза после зелёной рамки
+    const p = await res.json();
+    if (mode === 'cart') {
+      const sent = sendScan(code);
+      show(sent ? `✓ ${p.name} — ${money(p.price)} → в кассе` : `⏳ ${p.name}: нет связи с кассой, отправлю, когда связь вернётся`, sent ? 'ok' : 'bad');
+      addHistory(`${p.name} → касса`);
+    } else {
+      show(`Уже в прайсе: ${p.name} — ${money(p.price)}`, 'ok');
+    }
+  } else {
+    frame(FRAME.bad);
+    show('Штрихкод ' + code + ' не найден', 'bad');
+    $('nBarcode').value = code; $('nName').value = ''; $('nPrice').value = '';
+    photo = null; synonyms = ''; unit = 'шт'; $('nAi').textContent = ''; $('nPreview').hidden = true;
+    $('newForm').hidden = false; $('nName').focus();
+  }
+}
+
+// ---------- фото ценника → ИИ ----------
+let photo = null, synonyms = '', unit = 'шт';
+function pickPhoto() {
+  return new Promise(resolve => {
+    const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*' });
+    input.setAttribute('capture', 'environment');
+    input.onchange = () => {
+      const file = input.files[0]; if (!file) return resolve(null);
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, 1024 / Math.max(img.width, img.height));
+        const cv = Object.assign(document.createElement('canvas'), { width: Math.round(img.width * k), height: Math.round(img.height * k) });
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        resolve(cv.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = URL.createObjectURL(file);
+    };
+    input.click();
+  });
+}
+async function photoFill() {
+  const img = await pickPhoto(); if (!img) return;
+  photo = img; $('nPreview').src = img; $('nPreview').hidden = false;
+  $('nAi').textContent = '🤖 ИИ читает ценник…';
+  const res = await fetch('/api/ai/photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: img }) });
+  const r = await res.json().catch(() => ({}));
+  if (!res.ok) { $('nAi').textContent = r.detail || 'ИИ не ответил — заполните вручную.'; return; }
+  $('nName').value = r.name; if (r.price) $('nPrice').value = r.price;
+  synonyms = r.synonyms || ''; unit = r.unit || 'шт';
+  $('nAi').textContent = '🤖 Заполнено ИИ. ' + (r.price ? 'Проверьте и сохраните.' : 'Цену не видно — впишите.');
+}
+$('nPhoto').onclick = photoFill;
+$('noBarcode').onclick = () => {
+  paused = true; photo = null; synonyms = ''; unit = 'шт';
+  $('nBarcode').value = ''; $('nName').value = ''; $('nPrice').value = ''; $('nAi').textContent = ''; $('nPreview').hidden = true;
+  $('newForm').hidden = false; photoFill();
+};
+
+$('newForm').onsubmit = async e => {
+  e.preventDefault();
+  const res = await fetch('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: $('nName').value, price: Number($('nPrice').value), barcode: $('nBarcode').value || null, synonyms, unit }) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { show(data.detail || 'Не удалось сохранить', 'bad'); return; }
+  if (photo) await fetch(`/api/products/${data.id}/photo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: photo }) });
+  photo = null; synonyms = ''; unit = 'шт'; $('nPreview').hidden = true; $('nAi').textContent = '';
+  $('newForm').hidden = true; paused = false; frame(FRAME.idle);
+  addHistory(`${data.name} → в прайс`);
+  if (mode === 'cart' && data.barcode) { sendScan(data.barcode); show(`✓ ${data.name} добавлен в прайс и в кассу`, 'ok'); }
+  else show(`✓ ${data.name} добавлен в прайс`, 'ok');
+};
+$('nCancel').onclick = () => { $('newForm').hidden = true; paused = false; frame(FRAME.idle); show('Наведите камеру на штрихкод товара.'); };
+$('manual').onsubmit = e => { e.preventDefault(); last.code = ''; paused = false; handle($('manualCode').value); $('manualCode').value = ''; };
+
+if (mode === 'price') { $('mPrice').classList.add('on'); $('mCart').classList.remove('on'); }
+$('mCart').onclick = () => { mode = 'cart'; $('mCart').classList.add('on'); $('mPrice').classList.remove('on'); show('Режим: сканы идут в корзину кассы.'); };
+$('mPrice').onclick = () => { mode = 'price'; $('mPrice').classList.add('on'); $('mCart').classList.remove('on'); show('Режим: проверка и добавление товаров в прайс.'); };
+
+// ---------- камера ----------
+if (!window.isSecureContext) {
+  show('Камера работает только по защищённому адресу (https). Откройте ссылку из туннеля.', 'bad');
+} else if (!window.Html5Qrcode) {
+  show('Не загрузилась библиотека сканера. Проверьте интернет. Можно ввести код вручную.', 'bad');
+} else {
+  const F = Html5QrcodeSupportedFormats;
+  const scanner = new Html5Qrcode('reader', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.QR_CODE], verbose: false });
+  scanner.start({ facingMode: 'environment' }, { fps: 12, qrbox: (w, h) => ({ width: Math.min(w * 0.85, 360), height: Math.min(h * 0.45, 180) }) },
+    text => handle(text), () => {})
+    .catch(err => show('Нет доступа к камере: ' + err + '. Разрешите камеру в настройках браузера.', 'bad'));
+}
+</script>
+</body>
+</html>

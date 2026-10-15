@@ -1,0 +1,18 @@
+# Окружение и секреты — не публикуем
+.venv/
+.env
+__pycache__/
+*.pyc
+
+# Локальная база с данными магазина
+data/
+
+# Туннель Cloudflare (скачивается отдельно, 55 МБ)
+tools/cloudflared.exe
+
+# Скриншоты тестов
+tests/screens/
+
+# Временные файлы
+data/test-tunnel.log
+*.log

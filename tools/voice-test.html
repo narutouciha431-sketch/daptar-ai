@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Дәптер AI — тест голоса</title>
+<style>
+  :root { --brand:#8f1408; --bg:#f3efed; --fg:#24120f; --muted:#6e5853; --line:#e3d6d2; }
+  body { margin:0; padding:24px 16px; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui,"Segoe UI",Arial,sans-serif; }
+  main { max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
+  h1 { margin:0; color:var(--brand); font-size:26px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button { font:600 16px system-ui; border:0; border-radius:6px; padding:12px 18px; cursor:pointer; background:var(--brand); color:#fff; }
+  button.alt { background:#fff; color:var(--brand); border:2px solid var(--brand); }
+  button:disabled { opacity:.5; cursor:default; }
+  #status { color:var(--muted); font-size:14px; }
+  #live { min-height:28px; color:var(--muted); font-style:italic; }
+  table { width:100%; border-collapse:collapse; background:#fff; font-size:15px; }
+  th, td { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:#f6e3df; color:var(--brand); }
+  .phrases li { margin-bottom:4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Тест распознавания голоса</h1>
+  <p>Проверяем бесплатное распознавание речи браузера Chrome на казахском и русском. Нажмите кнопку языка, скажите фразу, результат появится в таблице.</p>
+
+  <div class="row">
+    <button id="kk">🎤 Қазақша (kk-KZ)</button>
+    <button id="ru" class="alt">🎤 Русский (ru-RU)</button>
+    <button id="stop" class="alt" disabled>Стоп</button>
+  </div>
+  <div id="status">Готово к записи.</div>
+  <div id="live"></div>
+
+  <details open>
+    <summary>Фразы для теста (скажите каждую)</summary>
+    <ol class="phrases">
+      <li><b>Қазақша:</b> Айгүл апай, екі нан, бір сүт, қарызға</li>
+      <li><b>Қазақша:</b> Ерлан, сигареты и вода, в долг (русская фраза в казахском режиме)</li>
+      <li><b>Қазақша:</b> Мадина, два хлеба и сосиски, қарызға (смешанная фраза)</li>
+      <li><b>Қазақша:</b> Нұрлан ағай, бір қорап шай, бір кило қант, қарызға</li>
+      <li><b>Қазақша:</b> Сәуле, үш кило картоп</li>
+      <li><b>Қазақша:</b> Ерлан қарызын төледі екі мың бес жүз</li>
+      <li><b>Русский:</b> Ерлан, сигареты и вода, в долг</li>
+      <li><b>Русский:</b> Айгуль заплатила тысячу пятьсот</li>
+      <li><b>Қазақша, с шумом</b> (включите музыку или телевизор): фраза 1</li>
+      <li><b>Қазақша, тихо и быстро</b>, как у прилавка: фраза 4</li>
+    </ol>
+  </details>
+
+  <table>
+    <thead><tr><th>№</th><th>Язык</th><th>Что распознано</th><th>Уверенность</th><th>Верно?</th></tr></thead>
+    <tbody id="results"></tbody>
+  </table>
+  <p id="score" style="font-weight:600"></p>
+</main>
+
+<script>
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const status = document.getElementById('status');
+const live = document.getElementById('live');
+const results = document.getElementById('results');
+const btnKk = document.getElementById('kk');
+const btnRu = document.getElementById('ru');
+const btnStop = document.getElementById('stop');
+let rec = null, n = 0;
+
+if (!SR) {
+  status.textContent = 'Этот браузер не поддерживает распознавание речи. Откройте страницу в Google Chrome.';
+  btnKk.disabled = btnRu.disabled = true;
+}
+
+function updateScore() {
+  const boxes = results.querySelectorAll('input[type=checkbox]');
+  const ok = [...boxes].filter(b => b.checked).length;
+  document.getElementById('score').textContent = boxes.length ? `Верно: ${ok} из ${boxes.length}` : '';
+}
+
+// Слушаем непрерывно, пока не нажата «Стоп»: паузы внутри фразы больше не обрывают запись
+function start(lang) {
+  if (rec) rec.abort();
+  rec = new SR();
+  rec.lang = lang;
+  rec.interimResults = true;
+  rec.continuous = true;
+  rec.maxAlternatives = 1;
+  let finalText = '', confs = [];
+  btnKk.disabled = btnRu.disabled = true;
+  btnStop.disabled = false;
+  status.textContent = `Включаю микрофон (${lang})… подождите.`;
+  live.textContent = '';
+  rec.onaudiostart = () => { status.textContent = `🔴 Говорите (${lang}). Закончили — нажмите «Стоп».`; };
+  rec.onresult = e => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) { finalText += r[0].transcript + ' '; if (r[0].confidence) confs.push(r[0].confidence); }
+      else interim += r[0].transcript;
+    }
+    live.textContent = finalText + interim;
+  };
+  rec.onerror = e => { status.textContent = 'Ошибка: ' + e.error + (e.error === 'not-allowed' ? ' — разрешите доступ к микрофону.' : ''); };
+  rec.onend = () => {
+    btnStop.disabled = true; btnKk.disabled = btnRu.disabled = false;
+    const text = finalText.trim();
+    if (text) {
+      n++;
+      const tr = document.createElement('tr');
+      const conf = confs.length ? Math.round(confs.reduce((a, b) => a + b) / confs.length * 100) + '%' : '—';
+      tr.innerHTML = `<td>${n}</td><td>${lang}</td><td></td><td>${conf}</td><td><input type="checkbox" aria-label="Верно"></td>`;
+      tr.children[2].textContent = text;
+      tr.querySelector('input').addEventListener('change', updateScore);
+      results.appendChild(tr);
+      updateScore();
+    }
+    if (!status.textContent.startsWith('Ошибка')) status.textContent = text ? 'Записано. Можно следующую фразу.' : 'Ничего не распознано, попробуйте ещё раз.';
+  };
+  rec.start();
+}
+btnKk.onclick = () => start('kk-KZ');
+btnRu.onclick = () => start('ru-RU');
+btnStop.onclick = () => rec && rec.stop();
+</script>
+</body>
+</html>
