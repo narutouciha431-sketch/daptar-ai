@@ -27,7 +27,7 @@ from . import ai, bot
 from .analytics import analytics, clear_demo, reset_demo, seed_demo
 from .auth import (COOKIE, Me, check_password, clean_email, clean_phone, client_ip, current, drop_session, guard_login,
                    login_failed, new_login_token, new_session, resolve, set_cookie, use_login_token, ws_user)
-from .config import BOT_USERNAME, SERVICE_KASPI, SERVICE_KASPI_NAME
+from .config import BOT_USERNAME, SERVICE_KASPI, SERVICE_KASPI_NAME, WEBHOOK_SECRET
 from .db import (BALANCE_SQL, DEMO_EMAIL, create_shop, get_shop, hash_password, init_db, open_debts, session,
                  settle_fifo, verify_password)
 from .live import hub
@@ -40,7 +40,6 @@ logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-PHOTO_DIR = DATA_DIR / "photos"
 
 
 async def evening_report_loop():
@@ -66,6 +65,12 @@ async def evening_report_loop():
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    # Новый пустой сервер: демо-магазин сразу с историей, чтобы жюри было что посмотреть
+    with session() as c:
+        demo = c.execute("SELECT shop.id FROM shop JOIN user ON user.id = shop.user_id WHERE email = ?", (DEMO_EMAIL,)).fetchone()
+        empty = demo and not c.execute("SELECT 1 FROM sale WHERE shop_id = ? LIMIT 1", (demo["id"],)).fetchone()
+    if empty:
+        reset_demo(demo["id"])
     await bot.start()
     task = asyncio.create_task(evening_report_loop())
     yield
@@ -82,6 +87,21 @@ def owned(c: sqlite3.Connection, table: str, row_id: int, shop_id: int) -> sqlit
     if not row:
         raise HTTPException(404, {"product": "Товар не найден", "customer": "Покупатель не найден"}.get(table, "Запись не найдена"))
     return row
+
+
+@app.post("/tg/webhook")
+async def telegram_webhook(request: Request):
+    """Сообщения от Telegram на сервере. Чужие запросы без секрета отклоняем."""
+    if not WEBHOOK_SECRET or request.headers.get("x-telegram-bot-api-secret-token") != WEBHOOK_SECRET:
+        raise HTTPException(403)
+    await bot.handle_webhook(await request.json())
+    return {"ok": True}
+
+
+@app.get("/healthz")
+def healthz():
+    """Для «будильника» и проверки Render: сервер жив."""
+    return {"ok": True}
 
 
 # ---------- аккаунты ----------
@@ -270,8 +290,8 @@ async def delete_product(pid: int, m: Me = Depends(current)):
     with session() as c:
         owned(c, "product", pid, m.shop_id)
         c.execute("UPDATE sale_item SET product_id = NULL WHERE product_id = ?", (pid,))  # история продаж остаётся
+        c.execute("DELETE FROM product_photo WHERE product_id = ?", (pid,))
         c.execute("DELETE FROM product WHERE id = ?", (pid,))
-    (PHOTO_DIR / f"{pid}.jpg").unlink(missing_ok=True)
     await hub.broadcast(m.shop_id, {"type": "products_changed"})
 
 
@@ -748,8 +768,7 @@ async def product_photo_upload(pid: int, p: PhotoIn, m: Me = Depends(current)):
     data = decode_image(b64)
     with session() as c:
         owned(c, "product", pid, m.shop_id)
-        PHOTO_DIR.mkdir(parents=True, exist_ok=True)
-        (PHOTO_DIR / f"{pid}.jpg").write_bytes(data)
+        c.execute("INSERT OR REPLACE INTO product_photo (product_id, data) VALUES (?, ?)", (pid, data))
         c.execute("UPDATE product SET photo = 1 WHERE id = ?", (pid,))
     await hub.broadcast(m.shop_id, {"type": "products_changed"})
     return {"ok": True}
@@ -759,10 +778,10 @@ async def product_photo_upload(pid: int, p: PhotoIn, m: Me = Depends(current)):
 def product_photo(pid: int, m: Me = Depends(current)):
     with session() as c:
         owned(c, "product", pid, m.shop_id)
-    path = PHOTO_DIR / f"{pid}.jpg"
-    if not path.exists():
+        row = c.execute("SELECT data FROM product_photo WHERE product_id = ?", (pid,)).fetchone()
+    if not row:
         raise HTTPException(404, "Фото нет")
-    return FileResponse(path, media_type="image/jpeg")
+    return Response(bytes(row["data"]), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
 
 _insights_cache: dict[int, dict] = {}

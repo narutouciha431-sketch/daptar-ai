@@ -18,3 +18,9 @@ SIMPLIFIED_LIMIT = 600_000 * MRP_2026
 SERVICE_RATE = min(max(float(os.getenv("SERVICE_RATE", "0.01") or 0.01), 0.005), 0.02)
 SERVICE_KASPI = os.getenv("SERVICE_KASPI", "").strip()
 SERVICE_KASPI_NAME = os.getenv("SERVICE_KASPI_NAME", "").strip()
+
+# Адрес сайта на сервере (Render задаёт RENDER_EXTERNAL_URL сам). Пусто — сайт запущен на ноутбуке.
+PUBLIC_URL = (os.getenv("PUBLIC_URL") or os.getenv("RENDER_EXTERNAL_URL") or "").strip().rstrip("/")
+# Секрет, по которому сервер узнаёт, что запрос на /tg/webhook пришёл именно от Telegram
+import hashlib as _hashlib
+WEBHOOK_SECRET = _hashlib.sha256(("daptar-webhook:" + BOT_TOKEN).encode()).hexdigest()[:48] if BOT_TOKEN else ""

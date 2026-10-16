@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Дәптер AI — живая тетрадь</title>
+<!-- Шрифты с казахскими буквами (проверено): Literata — заголовки, Golos Text — текст, Caveat — пометки ручкой -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,600;7..72,800&family=Golos+Text:wght@400;500;600&family=Caveat:wght@600;700&display=swap">
+<style>
+/* ===========================================
+   ТЕМА: «ЖИВАЯ ТЕТРАДЬ»
+   Страница школьной тетради в клетку: синие чернила, красная линия полей,
+   пометки ручкой и золотой орнамент қошқар мүйіз как закладка.
+   =========================================== */
+:root {
+  --paper: #fbfcfe;
+  --grid: rgba(31, 79, 180, .09);
+  --ink: #1f4fb4;        /* синие чернила */
+  --ink-deep: #14306e;
+  --text: #1b2333;
+  --muted: #5b6577;
+  --margin: #e0574f;     /* красная линия полей */
+  --gold: #c9a227;
+  --marker: #f2b705;
+  --f-head: 'Literata', serif;
+  --f-body: 'Golos Text', sans-serif;
+  --f-hand: 'Caveat', cursive;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --stage-bg: #e9edf4;
+  --slide-bg: var(--paper);
+  --orn: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='16' viewBox='0 0 44 16'%3E%3Cpath d='M3 14C3 5 11 2 15 6.5c3 3.3-.5 7-3.5 5-2-1.4-.4-4 1.4-3M41 14c0-9-8-12-12-7.5-3 3.3.5 7 3.5 5 2-1.4.4-4-1.4-3M15 6.5Q22 0 29 6.5' fill='none' stroke='%23C9A227' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* === FIXED 16:9 STAGE: viewport-base.css (полностью) === */
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--stage-bg, #000); }
+.deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--stage-bg, #000); }
+.deck-stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; background: var(--slide-bg, #fff); }
+.slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; display: block; visibility: hidden; opacity: 0; pointer-events: none; background: var(--slide-bg, #fff); }
+.slide.active, .slide.visible { visibility: visible; opacity: 1; pointer-events: auto; z-index: 1; }
+img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+.deck-controls { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 1000; }
+@media print {
+  html, body { width: 1920px; height: auto; overflow: visible; background: #fff; }
+  .deck-viewport { position: static; overflow: visible; background: #fff; }
+  .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; }
+  .slide { position: relative; display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px; break-after: page; page-break-after: always; }
+  .slide:last-child { break-after: auto; page-break-after: auto; }
+  .deck-controls { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; } }
+
+/* === СТРАНИЦА ТЕТРАДИ === */
+.slide {
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 40px 40px,
+    var(--paper);
+  font-family: var(--f-body); color: var(--text);
+}
+/* красная линия полей и дырочки на корешке */
+.slide::before { content: ""; position: absolute; top: 0; bottom: 0; left: 168px; width: 3px; background: var(--margin); opacity: .75; }
+.slide::after { content: ""; position: absolute; left: 52px; top: 120px; bottom: 120px; width: 26px;
+  background: radial-gradient(circle, var(--stage-bg) 9px, transparent 10px) 0 0 / 26px 140px; }
+.page { position: absolute; left: 240px; right: 110px; top: 96px; bottom: 90px; }
+.folio { position: absolute; right: 110px; bottom: 40px; font: 700 34px/1 var(--f-hand); color: var(--ink); }
+.brandline { position: absolute; left: 240px; bottom: 40px; font: 600 20px/1 var(--f-body); color: var(--muted); }
+.brandline b { color: var(--ink); }
+
+/* === ТИПОГРАФИКА === */
+h1, h2 { font-family: var(--f-head); font-weight: 800; color: var(--ink-deep); letter-spacing: -0.02em; }
+h2 { font-size: 76px; line-height: 1.04; max-width: 1200px; }
+.lead { font-size: 34px; line-height: 1.4; color: var(--text); max-width: 900px; margin-top: 26px; }
+.hand { font-family: var(--f-hand); color: var(--ink); font-weight: 700; }
+.note { font: 700 40px/1.15 var(--f-hand); color: var(--ink); }
+.mark { background: linear-gradient(transparent 58%, rgba(242,183,5,.55) 58%); padding: 0 6px; }
+.src { position: absolute; left: 0; bottom: 0; font-size: 18px; color: var(--muted); max-width: 1300px; }
+
+/* фото и скриншоты «вклеены» в тетрадь скотчем */
+.pasted { position: absolute; background: #fff; padding: 14px; box-shadow: 0 18px 40px rgba(20,48,110,.16), 0 2px 6px rgba(20,48,110,.12); }
+.pasted img { display: block; width: 100%; height: 100%; object-fit: cover; max-height: none; }
+.pasted::before { content: ""; position: absolute; top: -18px; left: 50%; width: 150px; height: 36px; transform: translateX(-50%) rotate(-3deg);
+  background: rgba(242,183,5,.38); border-left: 2px dashed rgba(255,255,255,.6); border-right: 2px dashed rgba(255,255,255,.6); }
+.shot img { object-fit: cover; object-position: top left; }
+
+/* обведено ручкой */
+.circle { position: absolute; border: 4px solid var(--margin); border-radius: 50%; transform: rotate(-6deg); pointer-events: none; }
+.arrow { position: absolute; pointer-events: none; }
+
+/* === ПОЯВЛЕНИЕ (одно движение на слайд) === */
+.reveal { opacity: 0; transform: translateY(26px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+.slide.visible .reveal { opacity: 1; transform: none; }
+.slide.visible .reveal.d1 { transition-delay: .12s; } .slide.visible .reveal.d2 { transition-delay: .24s; }
+.slide.visible .reveal.d3 { transition-delay: .36s; } .slide.visible .reveal.d4 { transition-delay: .48s; }
+@media print { .reveal { opacity: 1 !important; } }
+
+/* === 1. ОБЛОЖКА === */
+.cover h1 { font-size: 200px; line-height: .95; letter-spacing: -0.04em; margin-top: 150px; }
+.cover h1 .ai { font: 700 190px/1 var(--f-hand); color: var(--margin); margin-left: 18px; }
+.cover .lead { font-size: 44px; margin-top: 40px; }
+.cover .orn { position: absolute; left: 0; right: 0; top: 0; height: 22px; background: var(--orn) repeat-x center / 60px 22px; }
+.cover .who { position: absolute; left: 0; bottom: 0; font-size: 28px; color: var(--muted); }
+.cover .who b { color: var(--text); }
+
+/* === 2. ПРОБЛЕМА === */
+.facts { position: absolute; left: 0; top: 360px; width: 820px; display: grid; gap: 34px; }
+.fact { display: grid; grid-template-columns: 250px 1fr; align-items: baseline; gap: 24px; border-bottom: 2px dashed rgba(31,79,180,.25); padding-bottom: 26px; }
+.fact b { font: 800 84px/1 var(--f-head); color: var(--ink); letter-spacing: -0.03em; }
+.fact span { font-size: 28px; line-height: 1.35; }
+
+/* === 3. БОЛИ === */
+.pains { position: absolute; left: 0; right: 0; top: 300px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+.pain { position: relative; padding: 36px 34px 40px; background: #fff; box-shadow: 0 10px 30px rgba(20,48,110,.08); }
+.pain:nth-child(1) { transform: rotate(-1.2deg); } .pain:nth-child(2) { transform: rotate(.8deg) translateY(30px); } .pain:nth-child(3) { transform: rotate(-.6deg); }
+.pain .who { font: 700 52px/1 var(--f-hand); color: var(--margin); }
+.pain h3 { font: 800 40px/1.12 var(--f-head); color: var(--ink-deep); margin: 18px 0 16px; }
+.pain p { font-size: 26px; line-height: 1.4; color: var(--muted); }
+
+/* === 4. ИНТЕРВЬЮ === */
+.slot { position: absolute; border: 4px dashed rgba(31,79,180,.35); display: grid; place-items: center; text-align: center; background: rgba(255,255,255,.6); }
+.slot .note { font-size: 44px; }
+
+/* === 6. TELEGRAM === */
+.tg { position: absolute; width: 560px; background: #e6ebee url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Ccircle cx='20' cy='20' r='1.5' fill='%23c5d0d6'/%3E%3C/svg%3E"); border-radius: 34px; padding: 26px; box-shadow: 0 24px 50px rgba(20,48,110,.2); border: 10px solid #1b2333; }
+.tg .bar { font: 600 22px/1 var(--f-body); color: #1b2333; padding: 4px 6px 18px; border-bottom: 1px solid #cfd8dc; margin-bottom: 18px; }
+.tg .bubble { background: #fff; border-radius: 18px 18px 18px 4px; padding: 20px 22px; font-size: 22px; line-height: 1.42; }
+.tg .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.tg .btns span { background: rgba(255,255,255,.75); border-radius: 12px; text-align: center; padding: 14px 6px; font-weight: 600; font-size: 21px; color: #2a7ab0; }
+.step { position: absolute; }
+.step .num { font: 700 110px/1 var(--f-hand); color: var(--margin); }
+.step h3 { font: 800 38px/1.1 var(--f-head); color: var(--ink-deep); margin-top: 6px; }
+.step p { font-size: 24px; line-height: 1.35; color: var(--muted); margin-top: 8px; }
+
+/* === 7. ИИ === */
+.ai-list { position: absolute; left: 0; top: 300px; width: 760px; display: grid; gap: 30px; }
+.ai-item { display: grid; grid-template-columns: 90px 1fr; gap: 18px; align-items: start; }
+.ai-item i { font: 700 64px/1 var(--f-hand); color: var(--margin); font-style: normal; }
+.ai-item h3 { font: 800 34px/1.15 var(--f-head); color: var(--ink-deep); }
+.ai-item p { font-size: 24px; line-height: 1.35; color: var(--muted); margin-top: 6px; }
+
+/* === 9. ДЕНЬГИ === */
+.price { position: absolute; left: 0; top: 300px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; width: 1500px; }
+.price div { border-top: 6px solid var(--ink); padding-top: 26px; }
+.price b { display: block; font: 800 96px/1 var(--f-head); color: var(--ink); letter-spacing: -0.03em; }
+.price span { display: block; font-size: 28px; line-height: 1.35; margin-top: 16px; }
+.calc { position: absolute; left: 0; top: 700px; max-width: 1400px; font: 700 42px/1.3 var(--f-hand); color: var(--ink); }
+
+/* === 10. ГОТОВО / ДАЛЬШЕ === */
+.cols { position: absolute; left: 0; right: 0; top: 280px; display: grid; grid-template-columns: 1fr 1fr; gap: 90px; }
+.cols h3 { font: 700 60px/1 var(--f-hand); color: var(--margin); margin-bottom: 22px; }
+.cols li { list-style: none; font-size: 30px; line-height: 1.35; padding: 14px 0 14px 54px; position: relative; border-bottom: 1px solid rgba(31,79,180,.15); }
+.cols .done li::before { content: "✓"; position: absolute; left: 6px; top: 10px; font: 700 40px/1 var(--f-hand); color: #1e8e4e; }
+.cols .next li::before { content: "→"; position: absolute; left: 4px; top: 10px; font: 700 40px/1 var(--f-hand); color: var(--ink); }
+
+/* === 11. ФИНАЛ === */
+.final h2 { font-size: 120px; margin-top: 140px; }
+.contacts { position: absolute; left: 0; bottom: 60px; display: grid; gap: 14px; font-size: 32px; }
+.contacts span { color: var(--muted); display: inline-block; width: 190px; }
+
+/* === НАВИГАЦИЯ (вне слайда) === */
+.deck-controls { font: 600 15px var(--f-body); color: #5b6577; background: rgba(255,255,255,.85); padding: 8px 16px; border-radius: 999px; }
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ===== 1. ОБЛОЖКА ===== -->
+<section class="slide cover active">
+  <div class="orn" aria-hidden="true"></div>
+  <div class="page">
+    <h1 class="reveal">Дәптер<span class="ai">AI</span></h1>
+    <p class="lead reveal d1">Тетрадь долгов для магазина у дома,<br>которая <span class="mark">сама считает и сама напоминает</span>.</p>
+    <p class="note reveal d2" style="margin-top:46px">«Айгүл апай, екі нан, бір сүт, қарызға» — и долг записан ✓</p>
+    <p class="who">Автор: <b>[Имя Фамилия]</b> · Тараз, 2026</p>
+  </div>
+  <div class="pasted reveal d3" style="right:110px; top:300px; width:600px; height:450px; transform:rotate(2.5deg)"><img src="img/interview1-7.jpg" alt="Касса магазина у дома в Таразе"></div>
+</section>
+
+<!-- ===== 2. ПРОБЛЕМА ===== -->
+<section class="slide">
+  <div class="page">
+    <h2 class="reveal" style="max-width:860px">Долги в магазинах у дома всё ещё пишут в бумажную тетрадь</h2>
+    <div class="facts">
+      <div class="fact reveal d1"><b>51,5%</b><span>жителей области живут в сёлах — там магазины дают в долг «по тетради»</span></div>
+      <div class="fact reveal d2"><b>16,9%</b><span>предприятий Казахстана мешает возврат долгов покупателей</span></div>
+      <div class="fact reveal d3"><b>80%+</b><span>абонентов пользуются WhatsApp — напоминание должно приходить туда</span></div>
+    </div>
+    <p class="src">Источники: Бюро национальной статистики (2026), конъюнктурный опрос Нацбанка РК за II кв. 2026, исследование Wunder Digital.</p>
+  </div>
+  <div class="pasted reveal d2" style="right:110px; top:190px; width:680px; height:510px; transform:rotate(-1.5deg)"><img src="img/interview1-1.jpg" alt="Тетрадь на кассе рядом с калькулятором"></div>
+  <div class="circle" style="right:120px; top:520px; width:300px; height:150px"></div>
+  <p class="note reveal d4" style="position:absolute; right:150px; top:750px; transform:rotate(-3deg)">вот она — та самая тетрадь ↑</p>
+  <span class="folio">2</span>
+</section>
+
+<!-- ===== 3. КОМУ БОЛЬНО ===== -->
+<section class="slide">
+  <div class="page">
+    <h2 class="reveal">Тетрадь подводит всех троих</h2>
+    <div class="pains">
+      <div class="pain reveal d1"><span class="who">продавец</span><h3>Пишет на ходу, ищет страницу, считает в уме</h3><p>В очереди легко ошибиться в сумме или забыть записать.</p></div>
+      <div class="pain reveal d2"><span class="who">покупатель</span><h3>Не помнит, сколько должен, и спорит</h3><p>Запись видит только продавец — подтвердить её нечем.</p></div>
+      <div class="pain reveal d3"><span class="who">владелец</span><h3>Не видит, где деньги</h3><p>Сколько продали за день и кто сколько должен — только после пересчёта тетради.</p></div>
+    </div>
+  </div>
+  <span class="folio">3</span>
+</section>
+
+<!-- ===== 4. ИНТЕРВЬЮ ===== -->
+<section class="slide">
+  <div class="page">
+    <h2 class="reveal" style="max-width:900px">Мы пошли в магазины и спросили</h2>
+    <p class="lead reveal d1" style="max-width:820px">Интервью с продавцами магазинов у дома в Таразе.</p>
+    <ul class="reveal d2" style="margin-top:40px; max-width:820px; list-style:none; display:grid; gap:22px; font-size:30px; line-height:1.35">
+      <li><span class="hand" style="font-size:44px">1.</span> Долги ведут в тетради прямо на кассе.</li>
+      <li><span class="hand" style="font-size:44px">2.</span> Платить за сервис удобнее <span class="mark">процентом: 0,5–2%</span> от оборота, а не фиксированной подпиской.</li>
+    </ul>
+  </div>
+  <div class="pasted reveal d1" style="left:1130px; top:110px; width:560px; height:420px; transform:rotate(-2deg)"><img src="img/interview1-4.jpg" alt="Интервью с продавцом, магазин №1"></div>
+  <p class="note reveal d2" style="position:absolute; left:1150px; top:560px">интервью №1</p>
+  <div class="slot reveal d3" style="left:1230px; top:640px; width:520px; height:330px; transform:rotate(1.5deg)"><p class="note">интервью №2<br><span style="font-size:30px; color:var(--muted)">место для фото</span></p></div>
+  <span class="folio">4</span>
+</section>
+
+<!-- ===== 5. РЕШЕНИЕ ===== -->
+<section class="slide">
+  <div class="page">
+    <h2 class="reveal" style="max-width:640px">Скажи вслух — и долг записан</h2>
+    <p class="lead reveal d1" style="max-width:680px">Продавец говорит по-казахски или по-русски. Дәптер сам находит покупателя, товары и цены из прайса.</p>
+    <p class="note reveal d2" style="margin-top:50px; max-width:640px">без кассовой программы,<br>без обучения — как тетрадь, только умная</p>
+  </div>
+  <div class="pasted shot reveal d2" style="left:1010px; top:130px; width:810px; height:530px; transform:rotate(1deg)"><img src="img/site-kassa.png" alt="Касса Дәптер AI: фраза разобрана в заказ"></div>
+  <div class="pasted shot reveal d3" style="left:900px; top:600px; width:240px; height:420px; transform:rotate(-4deg)"><img src="img/phone-kassa.png" alt="Касса на телефоне"></div>
+  <span class="folio">5</span>
+</section>
+
+<!-- ===== 6. КАК РАБОТАЕТ ===== -->
+<section class="slide">
+  <div class="page">
+    <h2 class="reveal">Покупатель сам подтверждает долг</h2>
+    <div class="step reveal d1" style="left:0; top:250px; width:560px">
+      <span class="num">1</span><h3>Продавец нажал «В долг»</h3><p>На экране — QR-код этой покупки.</p>
+    </div>
+    <div class="pasted shot reveal d1" style="left:0; top:520px; width:600px; height:340px; transform:rotate(-1deg)"><img src="img/site-consent.png" alt="QR-код подтверждения долга" style="object-position:10% 52%"></div>
+    <div class="step reveal d2" style="left:690px; top:250px; width:400px">
+      <span class="num">2</span><h3>Покупатель сканирует QR</h3><p>Открывается Telegram с суммой и сроком — нажимает «Растаймын».</p>
+    </div>
+    <div class="step reveal d3" style="left:690px; top:600px; width:400px">
+      <span class="num">3</span><h3>Срок подошёл — бот напомнит</h3><p>Со ссылкой на оплату Kaspi. Продавцу не нужно звонить.</p>
+    </div>
+  </div>
+  <div class="tg reveal d2" style="left:1380px; top:200px; width:460px">
+    <div class="bar">Дәптер AI · бот</div>
+    <div class="bubble">Сәлеметсіз бе, Айгүл апай!<br><br>«Береке» дүкенінен қарызға алғаныңыз:<br>Нан ×2, Сүт 1 л ×1, Шай 250 г ×1<br><br>Қарыз сомасы: <b>2 150 ₸</b><br>Қайтару мерзімі: <b>30 қазан</b><br><br>Растайсыз ба?</div>
+    <div class="btns"><span>✅ Растаймын</span><span>❌ Жоқ, бұл қате</span></div>
+  </div>
+  <span class="folio">6</span>
+</section>
+
+<!-- ===== 7. ИИ ===== -->
+<section class="slide">
+  <div class="page">
+    <h2 class="reveal">Где работает ИИ</h2>
+    <div class="ai-list">
+      <div class="ai-item reveal d1"><i>а</i><div><h3>Понимает речь продавца</h3><p>Казахские числа словами, «екі нан», «10 дана», опечатки распознавания. Правила + Google Gemini.</p></div></div>
+      <div class="ai-item reveal d2"><i>б</i><div><h3>Читает ценник по фото</h3><p>Название, цена и синонимы товара — прайс заполняется за минуты.</p></div></div>
+      <div class="ai-item reveal d3"><i>в</i><div><h3>Узнаёт товар на кассе</h3><p>Фото без штрихкода → 3 похожих товара из прайса, продавец выбирает.</p></div></div>
+      <div class="ai-item reveal d4"><i>г</i><div><h3>Советует владельцу</h3><p>По цифрам за 30 дней. В ИИ уходят только суммы и товары — без имён и телефонов.</p></div></div>
+    </div>
+  </div>
+  <div class="pasted shot reveal d2" style="left:1060px; top:200px; width:760px; height:600px; transform:rotate(1.5deg)"><img src="img/site-scan-choice.png" alt="Сканер на кассе: по штрихкоду или по фото"></div>
+  <span class="folio">7</span>
+</section>
+
+<!-- ===== 8. ДЛЯ ВЛАДЕЛЬЦА ===== -->
+<section class="slide">
+  <div class="page">
+    <h2 class="reveal" style="max-width:560px">Владелец видит всё с телефона</h2>
+    <p class="lead reveal d1" style="max-width:560px">Что сделать сегодня, кто просрочил, сколько вернули — и вечерний отчёт в Telegram.</p>
+  </div>
+  <div class="pasted shot reveal d1" style="left:900px; top:110px; width:920px; height:510px; transform:rotate(-1deg)"><img src="img/site-cabinet.png" alt="Кабинет владельца"></div>
+  <div class="pasted shot reveal d2" style="left:780px; top:640px; width:620px; height:360px; transform:rotate(1.5deg)"><img src="img/site-debts.png" alt="Раздел долгов"></div>
+  <div class="pasted shot reveal d3" style="left:240px; top:560px; width:430px; height:420px; transform:rotate(-2deg)"><img src="img/site-analytics.png" alt="Аналитика продаж" style="object-position:0 18%"></div>
+  <span class="folio">8</span>
+</section>
+
+<!-- ===== 9. ДЕНЬГИ ===== -->
+<section class="slide">
+  <div class="page">
+    <h2 class="reveal">Магазин платит, только когда получает деньги</h2>
+    <div class="price">
+      <div class="reveal d1"><b>0 ₸</b><span>старт и пробный период для магазина</span></div>
+      <div class="reveal d2"><b>0,5–2%</b><span>от реально полученных денег: оплаченные продажи + возвращённые долги</span></div>
+      <div class="reveal d3"><b>0 ₸</b><span>для покупателей — никаких процентов с долга</span></div>
+    </div>
+    <p class="calc reveal d4">пример, демо-магазин за октябрь:<br>838 400 ₸ продаж + 49 250 ₸ возвращённых долгов → 1% = <span class="mark">8 876 ₸</span> в месяц</p>
+    <p class="src">Ставка — по итогам интервью с магазинами. Счёт с реквизитами Kaspi бот присылает владельцу в Telegram.</p>
+  </div>
+  <span class="folio">9</span>
+</section>
+
+<!-- ===== 10. ГОТОВО И ДАЛЬШЕ ===== -->
+<section class="slide">
+  <div class="page">
+    <h2 class="reveal">Это уже работает</h2>
+    <div class="cols">
+      <ul class="done reveal d1"><h3>готово</h3>
+        <li>Касса: голос, текст, сканер, ИИ по фото</li>
+        <li>Долги с QR-согласием и напоминаниями</li>
+        <li>Telegram-бот для покупателя и владельца</li>
+        <li>Кабинет, аналитика, интерфейс қаз / рус</li>
+        <li>Аккаунты магазинов и автотесты</li>
+      </ul>
+      <ul class="next reveal d2"><h3>дальше</h3>
+        <li>Пилот в магазинах, где провели интервью</li>
+        <li>Сервер 24/7 и постоянный адрес</li>
+        <li>Голос в шумном магазине — дообучение</li>
+        <li>Больше магазинов Тараза и области</li>
+      </ul>
+    </div>
+  </div>
+  <span class="folio">10</span>
+</section>
+
+<!-- ===== 11. ФИНАЛ ===== -->
+<section class="slide final">
+  <div class="cover"><div class="orn" aria-hidden="true"></div></div>
+  <div class="page">
+    <h2 class="reveal">Рахмет!</h2>
+    <p class="lead reveal d1">Дәптер AI — тетрадь, которая сама напоминает.</p>
+    <div class="contacts reveal d2">
+      <div><span>Автор</span>[Имя Фамилия]</div>
+      <div><span>GitHub</span>github.com/narutouciha431-sketch/daptar-ai</div>
+      <div><span>Демо</span>кнопка «Посмотреть демо-магазин» на сайте</div>
+    </div>
+  </div>
+  <div class="pasted reveal d2" style="right:110px; top:170px; width:600px; height:450px; transform:rotate(-2deg)"><img src="img/interview1-6.jpg" alt="Магазин у дома"></div>
+  <span class="folio">11</span>
+</section>
+
+</main>
+</div>
+<div class="deck-controls" id="counter">1 / 11</div>
+
+<script>
+/* ===========================================
+   УПРАВЛЕНИЕ: стрелки, пробел, колесо, свайп; масштаб сцены 1920×1080
+   =========================================== */
+class SlidePresentation {
+  constructor() {
+    this.slides = [...document.querySelectorAll('.slide')];
+    this.i = 0;
+    this.stage = document.getElementById('deckStage');
+    this.counter = document.getElementById('counter');
+    const fit = () => {
+      const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+      this.stage.style.transform = `translate(${(innerWidth - 1920 * k) / 2}px, ${(innerHeight - 1080 * k) / 2}px) scale(${k})`;
+    };
+    fit(); addEventListener('resize', fit);
+    addEventListener('keydown', e => {
+      if (['ArrowRight', 'ArrowDown', ' ', 'PageDown'].includes(e.key)) { e.preventDefault(); this.go(this.i + 1); }
+      if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); this.go(this.i - 1); }
+      if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') this.toggleEdit();
+    });
+    let lock = 0;
+    addEventListener('wheel', e => { if (Date.now() - lock < 600) return; lock = Date.now(); this.go(this.i + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
+    let x0 = null;
+    addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+    addEventListener('touchend', e => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) this.go(this.i + (dx < 0 ? 1 : -1)); x0 = null; });
+    this.go(0);
+  }
+  go(n) {
+    this.i = Math.max(0, Math.min(n, this.slides.length - 1));
+    this.slides.forEach((s, k) => { s.classList.toggle('active', k === this.i); s.classList.toggle('visible', k === this.i); });
+    this.counter.textContent = `${this.i + 1} / ${this.slides.length}`;
+  }
+  /* Клавиша E — правка текста прямо в браузере (для быстрых исправлений перед показом) */
+  toggleEdit() {
+    const on = document.body.toggleAttribute('data-edit');
+    document.querySelectorAll('h1, h2, h3, p, li, .fact span, .price span').forEach(el => { el.contentEditable = on; });
+  }
+}
+new SlidePresentation();
+</script>
+</body>
+</html>

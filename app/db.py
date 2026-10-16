@@ -4,6 +4,8 @@
 """
 import hashlib
 import hmac
+import os
+import re
 import secrets
 import sqlite3
 from contextlib import contextmanager
@@ -46,7 +48,17 @@ CREATE TABLE IF NOT EXISTS shop (
     owner_chat  INTEGER,                         -- Telegram chat_id владельца
     owner_secret TEXT,                           -- секрет для подключения владельца к боту
     report_time TEXT NOT NULL DEFAULT '21:00',   -- когда присылать вечерний отчёт
-    report_sent_on TEXT                          -- дата последнего отправленного отчёта
+    report_sent_on TEXT,                         -- дата последнего отправленного отчёта
+    owner_username TEXT,                         -- @username владельца в Telegram
+    service_kaspi  TEXT NOT NULL DEFAULT '',     -- реквизиты оплаты сервиса Дәптер
+    service_name   TEXT NOT NULL DEFAULT '',
+    service_rate   REAL NOT NULL DEFAULT 0.01
+);
+
+-- Фото товаров храним в базе: на сервере файлы на диске не сохраняются
+CREATE TABLE IF NOT EXISTS product_photo (
+    product_id  INTEGER PRIMARY KEY REFERENCES product(id),
+    data        BLOB NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS product (
@@ -72,7 +84,8 @@ CREATE TABLE IF NOT EXISTS customer (
     language    TEXT NOT NULL DEFAULT 'kk',
     tg_chat_id  INTEGER,                         -- появляется после подтверждения долга в боте
     created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-    demo        INTEGER NOT NULL DEFAULT 0       -- демо-покупатель для истории графиков
+    demo        INTEGER NOT NULL DEFAULT 0,      -- демо-покупатель для истории графиков
+    tg_username TEXT                             -- @username покупателя в Telegram
 );
 
 -- Любая продажа: оплачено сразу или в долг
@@ -223,7 +236,94 @@ def create_shop(c: sqlite3.Connection, user_id: int, name: str) -> int:
                      (user_id, name, secrets.token_urlsafe(9))).lastrowid
 
 
+# ---------- облачная база Turso (на сервере) ----------
+# Если в окружении есть TURSO_URL — работаем с облачной базой (тот же SQLite, но в облаке Turso),
+# иначе — с локальным файлом data/daptar.db. SQL-запросы одинаковые для обоих.
+TURSO_URL = os.getenv("TURSO_URL", "").strip()
+TURSO_TOKEN = os.getenv("TURSO_TOKEN", "").strip()
+
+
+# Облако Turso живёт по UTC, а «localtime» там — тоже UTC. Казахстан — UTC+5 круглый год.
+_LOCALTIME = re.compile(r"(date(?:time)?)\('now',\s*'localtime'\)")
+
+
+def _kz_time(sql: str) -> str:
+    return _LOCALTIME.sub(lambda m: m.group(1) + "('now', '+5 hours')", sql)
+
+
+class Row(tuple):
+    """Строка результата как у sqlite3.Row: r[0], r["name"], dict(r), распаковка в кортеж."""
+    _index: dict
+
+    def __new__(cls, values, index):
+        row = super().__new__(cls, values)
+        row._index = index
+        return row
+
+    def __getitem__(self, key):
+        return super().__getitem__(self._index[key] if isinstance(key, str) else key)
+
+    def keys(self):
+        return list(self._index)
+
+
+class Cursor:
+    """Обёртка курсора libsql: строки-Row, перебор циклом, lastrowid/rowcount."""
+
+    def __init__(self, cur):
+        self._cur = cur
+        self.lastrowid = cur.lastrowid
+        self.rowcount = cur.rowcount
+        desc = cur.description or ()
+        self._index = {d[0]: i for i, d in enumerate(desc)}
+
+    def _wrap(self, r):
+        return None if r is None else Row(r, self._index)
+
+    def fetchone(self):
+        return self._wrap(self._cur.fetchone())
+
+    def fetchall(self):
+        return [Row(r, self._index) for r in self._cur.fetchall()]
+
+    def __iter__(self):
+        return iter(self.fetchall())
+
+
+class TursoConnection:
+    """Соединение с Turso с тем же интерфейсом, что использует код: execute, executemany, commit, close."""
+
+    def __init__(self):
+        import libsql  # нужен только на сервере
+        self._conn = libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
+
+    def execute(self, sql, params=()):
+        try:
+            return Cursor(self._conn.execute(_kz_time(sql), tuple(params)))
+        except ValueError as e:  # libsql сообщает о нарушении ограничений как ValueError
+            if "constraint" in str(e).lower():
+                raise sqlite3.IntegrityError(str(e)) from e
+            raise
+
+    def executemany(self, sql, seq):
+        for params in seq:
+            self.execute(sql, params)
+
+    def executescript(self, script):
+        self._conn.executescript(_kz_time(script))
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+
 def connect() -> sqlite3.Connection:
+    if TURSO_URL:
+        conn = TursoConnection()
+        conn.execute("PRAGMA foreign_keys = ON")
+        return conn
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -324,6 +424,14 @@ def init_db() -> None:
         c.executescript(SCHEMA)
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS sale_client_ref ON sale (shop_id, client_ref) WHERE client_ref IS NOT NULL")
         seed_demo_account(c)
+        # Фото из старой папки data/photos переносим в базу (один раз)
+        folder = DB_PATH.parent / "photos"
+        if not TURSO_URL and folder.is_dir():
+            for f in folder.glob("*.jpg"):
+                pid = int(f.stem) if f.stem.isdigit() else None
+                has_product = pid and c.execute("SELECT 1 FROM product WHERE id = ?", (pid,)).fetchone()
+                if has_product and not c.execute("SELECT 1 FROM product_photo WHERE product_id = ?", (pid,)).fetchone():
+                    c.execute("INSERT INTO product_photo (product_id, data) VALUES (?, ?)", (pid, f.read_bytes()))
         # Приводим статусы долгов в порядок (оплаты гасят самые старые)
         for (cid,) in c.execute("SELECT id FROM customer").fetchall():
             settle_fifo(c, cid)

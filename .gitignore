@@ -16,3 +16,8 @@ tests/screens/
 # Временные файлы
 data/test-tunnel.log
 *.log
+
+# Презентация: фото интервью (лица людей) и готовые файлы — не публикуем
+pitch/img/
+pitch/out/
+.frontend-slides/

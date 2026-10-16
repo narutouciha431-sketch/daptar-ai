@@ -133,6 +133,7 @@ def reset_demo(shop_id: int) -> int:
     Всё, что посетители добавили в общий демо-магазин, стирается."""
     with session() as c:
         c.execute("DELETE FROM sale_item WHERE sale_id IN (SELECT id FROM sale WHERE shop_id = ?)", (shop_id,))
+        c.execute("DELETE FROM product_photo WHERE product_id IN (SELECT id FROM product WHERE shop_id = ?)", (shop_id,))
         for table in ("sale", "payment", "reminder", "customer", "product"):
             c.execute(f"DELETE FROM {table} WHERE shop_id = ?", (shop_id,))
         c.executemany("INSERT INTO product (shop_id, name, synonyms, price, unit) VALUES (?, ?, ?, ?, ?)",

@@ -124,5 +124,6 @@ def use_login_token(token: str) -> int | None:
 
 
 def client_ip(request: Request) -> str:
-    """Настоящий адрес посетителя: за туннелем Cloudflare все запросы приходят с 127.0.0.1."""
-    return request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "")
+    """Настоящий адрес посетителя: за туннелем Cloudflare или прокси Render запросы приходят не напрямую."""
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    return request.headers.get("cf-connecting-ip") or forwarded or (request.client.host if request.client else "")

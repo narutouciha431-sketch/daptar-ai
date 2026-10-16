@@ -4,6 +4,7 @@
 двойное нажатие, XSS. Скриншоты кладёт в tests/screens/ — для проверки внешнего вида.
 Запуск (сервер на 127.0.0.1:8000):  .venv\\Scripts\\python.exe tests\\e2e_ui.py
 """
+import os
 import sys
 from pathlib import Path
 
@@ -13,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.stdout.reconfigure(encoding="utf-8")
 from tests.crash_api import cleanup, EMAIL  # noqa: E402
 
-B = "http://127.0.0.1:8000"
+B = os.getenv("DAPTAR_URL", "http://127.0.0.1:8000")
 SHOTS = Path(__file__).resolve().parent / "screens"
 SHOTS.mkdir(exist_ok=True)
 report = {"ok": 0, "bad": 0, "notes": []}

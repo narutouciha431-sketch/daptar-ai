@@ -6,6 +6,7 @@
 """
 import http.cookiejar
 import json
+import os
 import sys
 import time
 import urllib.request as u
@@ -15,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.stdout.reconfigure(encoding="utf-8")
 
-B = "http://127.0.0.1:8000"
+B = os.getenv("DAPTAR_URL", "http://127.0.0.1:8000")
 EMAIL = "crash.test@daptar.kz"
 results = {"ok": 0, "bad": 0}
 

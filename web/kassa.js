@@ -259,7 +259,7 @@ async function renderKassa() {
         <div class="qr-box"><img src="/api/sales/${sale.id}/qr.svg" alt="QR-код подтверждения долга" width="190" height="190"></div>
         <div>
           <h2>Подтверждение долга</h2>
-          <p><b>${esc(who)}</b> должен <b>${money(sale.total - sale.paid_now)}</b> до ${esc(sale.due_date)}.</p>
+          <p><b>${esc(who)}</b> должен <b>${money(sale.total - sale.paid_now)}</b> до ${esc(fmtDate(sale.due_date, { day: "numeric", month: "long" }))}.</p>
           <p>Покупатель сканирует QR камерой телефона → открывается Telegram → он нажимает <b>«Растаймын»</b>.</p>
           ${sale.consent_sent ? '<p class="sub">Покупатель уже подключён к боту — запрос отправлен ему в Telegram.</p>' : ''}
           <p class="consent-status" id="consentStatus">⏳ Ждём подтверждения…</p>

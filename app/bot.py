@@ -13,7 +13,7 @@ from telegram.constants import ParseMode
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
 from . import texts as T
-from .config import BOT_TOKEN, BOT_USERNAME
+from .config import BOT_TOKEN, BOT_USERNAME, PUBLIC_URL, WEBHOOK_SECRET
 from .db import DEMO_EMAIL, customer_balance, get_shop, session
 from .live import hub
 from .reports import daily_report, report_text
@@ -252,14 +252,31 @@ async def start():
     app.add_handler(CallbackQueryHandler(on_paid, pattern=r"^p:"))
     await app.initialize()
     await app.start()
+    if PUBLIC_URL:
+        # На сервере: Telegram сам присылает сообщения на наш адрес (и будит уснувший сервер)
+        await app.bot.set_webhook(f"{PUBLIC_URL}/tg/webhook", secret_token=WEBHOOK_SECRET, drop_pending_updates=True)
+        log.warning("Telegram-бот @%s запущен (webhook на %s)", BOT_USERNAME, PUBLIC_URL)
+        return
+    info = await app.bot.get_webhook_info()
+    if info.url:
+        # Бот уже работает на сервере — ноутбук его не перехватывает
+        log.warning("Telegram-бот работает на сервере (%s) — здесь он не запускается", info.url.split("/tg/")[0])
+        return
     await app.updater.start_polling(drop_pending_updates=True)
     log.warning("Telegram-бот @%s запущен", BOT_USERNAME)
+
+
+async def handle_webhook(data: dict) -> None:
+    """Сообщение от Telegram, пришедшее на сервер."""
+    if app:
+        await app.process_update(Update.de_json(data, app.bot))
 
 
 async def stop():
     global app
     if app:
-        await app.updater.stop()
+        if app.updater and app.updater.running:
+            await app.updater.stop()
         await app.stop()
         await app.shutdown()
         app = None
