@@ -4,7 +4,16 @@ const view = document.getElementById('view');
 const money = n => new Intl.NumberFormat('ru-RU').format(n) + ' ₸';
 const fmtDate = (v, opt = { day: 'numeric', month: 'short' }) => {
   const d = new Date(String(v).length === 10 ? v + 'T00:00' : String(v).replace(' ', 'T'));
-  return isNaN(d) ? String(v ?? '') : new Intl.DateTimeFormat(uiLang === 'kk' ? 'kk-KZ' : 'ru-RU', opt).format(d);
+  if (isNaN(d)) return String(v ?? '');
+  if (uiLang !== 'kk') return new Intl.DateTimeFormat('ru-RU', opt).format(d);
+  // Браузеры пишут казахские месяцы как «M10», поэтому названия — свои
+  const full = ['қаңтар', 'ақпан', 'наурыз', 'сәуір', 'мамыр', 'маусым', 'шілде', 'тамыз', 'қыркүйек', 'қазан', 'қараша', 'желтоқсан'];
+  const short = ['қаң.', 'ақп.', 'нау.', 'сәу.', 'мам.', 'мау.', 'шіл.', 'там.', 'қыр.', 'қаз.', 'қар.', 'жел.'];
+  const month = (opt.month === 'long' ? full : short)[d.getMonth()];
+  const parts = [opt.day ? `${d.getDate()} ${month}` : month];
+  if (opt.year) parts.push(String(d.getFullYear()));
+  if (opt.hour) parts.push(d.toTimeString().slice(0, 5));
+  return parts.join(opt.hour ? ', ' : ' ');
 };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 

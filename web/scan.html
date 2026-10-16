@@ -13,7 +13,7 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: #fff; font: 16px/1.45 var(--f); min-height: 100%; }
   header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px; }
-  header b { font-size: 18px; }
+  header b { font-size: 18px; color: var(--brand); }
   .live { font-size: 12px; color: #c9b3ad; }
   .live.on { color: #7cc08a; }
   #reader { width: 100%; max-width: 520px; margin: 0 auto; background: #000; min-height: 240px; }
@@ -22,6 +22,11 @@
   .mode { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #f3efed; border-radius: 10px; padding: 4px; }
   .mode button { border: 0; background: transparent; padding: 10px; border-radius: 8px; font: 600 15px var(--f); color: var(--muted); }
   .mode button.on { background: var(--brand); color: #fff; }
+  .cands { list-style: none; display: grid; gap: 8px; margin: 8px 0; }
+  .cands li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--fg); font-size: 16px; }
+  .cands button.main { padding: 10px 18px; }
+  #aiHint { border-color: var(--brand); }
+  .lang-btn { border: 1px solid var(--line); background: #fff; color: var(--brand); border-radius: 999px; padding: 6px 12px; font: 600 14px var(--f); }
   .result { min-height: 54px; font-size: 18px; }
   .result.ok { color: var(--ok); }
   .result.bad { color: var(--bad); }
@@ -37,7 +42,7 @@
 </style>
 </head>
 <body>
-<header><b>📒 Дәптер · сканер</b><span class="live" id="live">● офлайн</span></header>
+<header><b>📒 Дәптер · сканер</b><span data-lang-slot style="display:flex;gap:8px;align-items:center"><span class="live" id="live">● офлайн</span></span></header>
 <div id="reader"></div>
 
 <div class="panel">
@@ -45,7 +50,16 @@
     <button id="mCart" class="on" type="button" role="tab">В кассу</button>
     <button id="mPrice" type="button" role="tab">В прайс</button>
   </div>
+  <div class="mode" role="tablist" aria-label="Как искать товар">
+    <button id="hBar" class="on" type="button" role="tab">▦ Штрихкод</button>
+    <button id="hAi" type="button" role="tab">🤖 По фото</button>
+  </div>
   <div class="result" id="result">Наведите камеру на штрихкод товара.</div>
+  <button class="ghost" type="button" id="aiHint" hidden>Штрихкод не читается? 📷 Сфотографируйте товар — ИИ найдёт его</button>
+  <div id="aiBox" hidden>
+    <button class="main" type="button" id="aiShot">📷 Сфотографировать товар</button>
+    <div id="aiRes"></div>
+  </div>
 
   <form id="newForm" hidden>
     <p class="hint">Этого штрихкода нет в прайсе. Добавьте товар — потом он будет находиться сразу.</p>
@@ -66,6 +80,7 @@
   <ul id="history"></ul>
 </div>
 
+<script src="/static/i18n.js?v=22"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
 const $ = id => document.getElementById(id);
@@ -109,6 +124,7 @@ function addHistory(text) {
 async function handle(code) {
   code = String(code).trim();
   if (!code) return;
+  lastRead = Date.now(); $('aiHint').hidden = true;
   const now = Date.now();
   // Тот же товар считаем снова, только если его убрали из кадра хотя бы на 0,7 с — без ложных повторов
   if (code === last.code) { const gap = now - last.seen; last.seen = now; if (paused || gap < 700) return; }
@@ -194,6 +210,50 @@ $('nCancel').onclick = () => { $('newForm').hidden = true; paused = false; frame
 $('manual').onsubmit = e => { e.preventDefault(); last.code = ''; paused = false; handle($('manualCode').value); $('manualCode').value = ''; };
 
 if (mode === 'price') { $('mPrice').classList.add('on'); $('mCart').classList.remove('on'); }
+// ---------- поиск товара по фото (ИИ) ----------
+let how = 'bar', lastRead = Date.now();
+function setHow(h) {
+  how = h; paused = h === 'ai';
+  $('hBar').classList.toggle('on', h === 'bar'); $('hAi').classList.toggle('on', h === 'ai');
+  $('aiBox').hidden = h !== 'ai'; $('aiHint').hidden = true; $('reader').style.display = h === 'ai' ? 'none' : '';
+  if (h === 'bar') { lastRead = Date.now(); frame(FRAME.idle); show('Наведите камеру на штрихкод товара.'); }
+  else show(mode === 'cart' ? 'Сфотографируйте товар — ИИ найдёт его в прайсе и отправит в кассу.' : 'Сфотографируйте товар — ИИ проверит, есть ли он в прайсе.');
+}
+$('hBar').onclick = () => setHow('bar');
+$('hAi').onclick = () => setHow('ai');
+$('aiHint').onclick = () => { setHow('ai'); aiShot(); };
+// Штрихкод не читается 6 секунд — предлагаем фото
+setInterval(() => { if (how === 'bar' && !paused && $('newForm').hidden && Date.now() - lastRead > 6000) $('aiHint').hidden = false; }, 1000);
+
+async function aiShot() {
+  const img = await pickPhoto(); if (!img) return;
+  $('aiRes').innerHTML = `<p class="hint">🤖 ИИ ищет товар в прайсе…</p>`;
+  const res = await fetch('/api/ai/match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: img }) });
+  if (res.status === 401) { location.href = '/login?next=/scan'; return; }
+  const r = await res.json().catch(() => ({}));
+  if (!res.ok) { $('aiRes').innerHTML = ''; show(r.detail || 'ИИ не ответил. Попробуйте ещё раз.', 'bad'); return; }
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  $('aiRes').innerHTML = (r.candidates.length ? `<p class="hint">На фото: ${esc(r.seen)}. Это один из них?</p><ul class="cands">${r.candidates.map((p, i) =>
+      `<li><span><b>${esc(p.name)}</b><br><small>${money(p.price)} · похоже на ${Math.round(p.confidence * 100)}%</small></span><button class="main" type="button" data-i="${i}">Да</button></li>`).join('')}</ul>`
+    : `<p class="hint">Похожего товара в прайсе нет (на фото: ${esc(r.seen)}).</p>`)
+    + `<button class="ghost" type="button" id="aiNew">Нет такого — добавить в прайс</button>`;
+  $('aiRes').querySelectorAll('[data-i]').forEach(b => b.onclick = () => {
+    const p = r.candidates[+b.dataset.i];
+    if (mode === 'cart') {
+      const msg = JSON.stringify({ type: 'scan', product_id: p.id });
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(msg); else outbox.push(msg);
+      show(`✓ ${p.name} — ${money(p.price)} → в кассе`, 'ok'); addHistory(`${p.name} → касса (фото)`);
+    } else { show(`Уже в прайсе: ${p.name} — ${money(p.price)}`, 'ok'); }
+    vibrate(); $('aiRes').innerHTML = '';
+  });
+  $('aiNew').onclick = () => {
+    $('aiRes').innerHTML = ''; photo = img; synonyms = ''; unit = 'шт';
+    $('nBarcode').value = ''; $('nName').value = ''; $('nPrice').value = ''; $('nPreview').src = img; $('nPreview').hidden = false;
+    $('newForm').hidden = false; $('nAi').textContent = '';
+  };
+}
+$('aiShot').onclick = aiShot;
+
 $('mCart').onclick = () => { mode = 'cart'; $('mCart').classList.add('on'); $('mPrice').classList.remove('on'); show('Режим: сканы идут в корзину кассы.'); };
 $('mPrice').onclick = () => { mode = 'price'; $('mPrice').classList.add('on'); $('mCart').classList.remove('on'); show('Режим: проверка и добавление товаров в прайс.'); };
 

@@ -176,6 +176,33 @@ def logout(request: Request):
     return resp
 
 
+class DeleteAccountIn(BaseModel):
+    password: str = Field(min_length=1, max_length=200)
+
+
+@app.post("/api/auth/delete")
+async def delete_account(d: DeleteAccountIn, request: Request, m: Me = Depends(current)):
+    """Удалить аккаунт и ВСЕ данные его магазина. Нужен пароль; демо-аккаунт удалить нельзя."""
+    with session() as c:
+        u = c.execute("SELECT email, pw_hash FROM user WHERE id = ?", (m.user_id,)).fetchone()
+        if u["email"] == DEMO_EMAIL:
+            raise HTTPException(403, "Демо-аккаунт общий — его удалить нельзя")
+        if not verify_password(d.password, u["pw_hash"]):
+            raise HTTPException(400, "Неверный пароль")
+        sid = m.shop_id
+        c.execute("DELETE FROM sale_item WHERE sale_id IN (SELECT id FROM sale WHERE shop_id = ?)", (sid,))
+        c.execute("DELETE FROM product_photo WHERE product_id IN (SELECT id FROM product WHERE shop_id = ?)", (sid,))
+        for table in ("reminder", "payment", "sale", "customer", "product"):
+            c.execute(f"DELETE FROM {table} WHERE shop_id = ?", (sid,))
+        c.execute("DELETE FROM shop WHERE id = ?", (sid,))
+        c.execute("DELETE FROM auth_session WHERE user_id = ?", (m.user_id,))
+        c.execute("DELETE FROM login_token WHERE user_id = ?", (m.user_id,))
+        c.execute("DELETE FROM user WHERE id = ?", (m.user_id,))
+    resp = JSONResponse({"deleted": True})
+    resp.delete_cookie(COOKIE, path="/")
+    return resp
+
+
 @app.get("/api/auth/state")
 def auth_state(request: Request):
     """Вошёл ли пользователь — без ошибки 401 в консоли на открытых страницах."""

@@ -52,7 +52,7 @@ async function renderCustomers() {
         <li>
           <div class="feed-top"><b>${s.kind === 'debt' ? 'В долг' : 'Покупка'}</b><span>${money(s.total)}</span></div>
           <div class="feed-items">${esc(s.items.map(it => it.name + ' ×' + fmtQty(it.qty)).join(', '))}</div>
-          <div class="feed-meta">${esc(s.created_at.slice(0, 16))}${s.kind === 'debt' ? ` · ${statusText(s.status)}${s.paid_now ? ' · заплатил сразу ' + money(s.paid_now) : ''}${s.due_date && s.status !== 'closed' ? ' · вернуть до ' + esc(s.due_date) : ''}` : ''}</div>
+          <div class="feed-meta">${esc(s.created_at.slice(0, 16))}${s.kind === 'debt' ? ` <span class="pill ${statusCls(s.status)}">${statusText(s.status)}</span>${s.paid_now ? ' · заплатил сразу ' + money(s.paid_now) : ''}${s.due_date && s.status !== 'closed' ? ' · вернуть до ' + esc(s.due_date) : ''}` : ''}</div>
         </li>` })),
       ...c.payments.map(p => ({ at: p.created_at, html: `
         <li class="pay">
@@ -62,7 +62,7 @@ async function renderCustomers() {
     ].sort((a, b) => b.at.localeCompare(a.at));
 
     $('detail').innerHTML = `
-      <div class="row-between"><h2>${esc(c.name)}</h2><span class="badge ${c.balance > 0 ? 'warn' : ''}">${c.balance > 0 ? 'Долг: ' + money(c.balance) : 'Долгов нет'}</span></div>
+      <div class="row-between"><h2>${esc(c.name)}</h2><span class="pill big ${c.balance > 0 ? 'warn' : 'ok'}">${c.balance > 0 ? 'Долг: ' + money(c.balance) : 'Долгов нет'}</span></div>
       <p class="sub">${esc([c.phone, c.address, c.language === 'kk' ? 'қазақша' : 'русский'].filter(Boolean).join(' · '))}</p>
       ${c.balance > 0 ? `
         <form class="pay-form" id="payForm">
@@ -115,6 +115,7 @@ async function renderCustomers() {
     await load();
   }
 
+  const statusCls = s => ({ pending: 'warn', confirmed: 'ok', rejected: 'bad', closed: 'ok' }[s] || '');
   const statusText = s => ({ pending: 'ждёт подтверждения', confirmed: 'подтверждён', rejected: 'отклонён', closed: 'закрыт' }[s] || s);
 
   $('crows').addEventListener('click', e => { const tr = e.target.closest('tr[data-id]'); if (tr) showDetail(Number(tr.dataset.id)); });

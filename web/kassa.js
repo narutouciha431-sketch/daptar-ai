@@ -205,7 +205,7 @@ async function renderKassa() {
       const c = r.customer && customers.find(x => x.id === r.customer.id);
       if (!c) { showNotice(`<p>Понял оплату ${money(r.amount)}, но не нашёл покупателя. Выберите его на странице «Покупатели».</p>`); return; }
       showNotice(`
-        <h2>Оплата долга${r.ai ? ' <span class="pill ok">🤖 ИИ</span>' : ''}</h2>
+        <h2>Оплата долга${r.ai ? ' <span class="pill ai">🤖 ИИ</span>' : ''}</h2>
         <p><b>${esc(c.name)}</b> возвращает деньги. Сейчас должен: ${money(c.balance)}.</p>
         <label>Сумма, ₸ (проверьте)<input id="payAmount" type="number" min="1" value="${r.amount}"></label>
         <div class="pay-buttons">
@@ -419,6 +419,10 @@ async function renderKassa() {
         $('consentStatus').textContent = msg.status === 'confirmed' ? '✅ Покупатель подтвердил долг' : '❌ Покупатель отклонил — проверьте запись';
         $('consentStatus').className = 'consent-status ' + (msg.status === 'confirmed' ? 'ok' : 'bad');
       }
+    }
+    if (msg.type === 'scan' && msg.product_id) {  // товар найден по фото на телефоне
+      const p = products.find(x => x.id === msg.product_id);
+      if (p) { state.source = 'photo'; addItem(p); toast('Фото: ' + p.name); }
     }
     if (msg.type === 'scan' && msg.barcode) {
       const p = await api('/api/products/barcode/' + encodeURIComponent(msg.barcode)).catch(() => null);

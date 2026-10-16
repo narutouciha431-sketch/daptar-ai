@@ -45,6 +45,13 @@ async function renderSettings() {
         <div class="debt-actions"><button type="button" id="demoSeed">Заполнить демо-историей</button><button type="button" class="danger" id="demoClear">Удалить демо-историю</button></div>
         <div id="demoResetBox" hidden><hr class="sep"><p class="sub">Общий демо-магазин могли изменить другие посетители. Кнопка вернёт прайс, покупателей, историю и долги к исходному виду.</p><button type="button" class="danger" id="demoReset">Сбросить демо-магазин к исходному виду</button></div>
       </div>
+      <hr class="sep" aria-hidden="true">
+      <form class="card danger-zone" id="deleteForm">
+        <h2>Удалить аккаунт</h2>
+        <p class="sub">Удалятся аккаунт, магазин, товары с фото, покупатели, продажи, долги, оплаты и напоминания. Восстановить их будет нельзя.</p>
+        <label>Пароль для подтверждения<input name="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit" class="danger">Удалить аккаунт и все данные</button>
+      </form>
     </div>`;
 
   const $ = id => document.getElementById(id) || document.createElement('div'); // экран мог смениться, пока шёл запрос
@@ -68,6 +75,7 @@ async function renderSettings() {
            <div class="qr-box"><img src="/api/shop/owner-qr.svg?${Date.now()}" alt="QR для подключения владельца" width="200" height="200"></div>
            <p class="sub">Или откройте ссылку: <a href="${esc(s.owner_link)}" target="_blank" rel="noopener">${esc(s.owner_link)}</a></p>`;
     $('demoResetBox').hidden = !s.is_demo;
+    $('deleteForm').hidden = s.is_demo;
     const un = document.getElementById('ownerUnlink');
     if (un) un.onclick = async () => { await api('/api/shop/owner-unlink', { method: 'POST' }); toast('Telegram отвязан'); load(); };
     const r = await api('/api/report');
@@ -100,6 +108,14 @@ async function renderSettings() {
   $('sendReport').onclick = async () => {
     try { await api('/api/report/send', { method: 'POST' }); toast('Отчёт отправлен в Telegram'); }
     catch (err) { toast(err.message, true); }
+  };
+  $('deleteForm').onsubmit = async e => {
+    e.preventDefault();
+    if (!confirm('Удалить аккаунт и ВСЕ данные магазина навсегда?')) return;
+    try {
+      await api('/api/auth/delete', { method: 'POST', body: { password: e.target.elements.password.value } });
+      location.href = '/';
+    } catch (err) { toast(err.message, true); }
   };
   $('demoReset').onclick = async e => {
     if (!confirm('Вернуть демо-магазин к исходному виду? Всё, что в нём добавили, удалится.')) return;

@@ -55,6 +55,14 @@ def no_crash(name, st, allowed=(200, 201, 204, 400, 401, 404, 409, 422)):
 
 
 def cleanup():
+    """Убираем тестовый аккаунт через сам сайт (кнопка «Удалить аккаунт») — так работает на любом сервере."""
+    op = u.build_opener(u.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    try:
+        for path, body in (("/api/auth/login", {"email": EMAIL, "password": "Crash12345"}), ("/api/auth/delete", {"password": "Crash12345"})):
+            op.open(u.Request(B + path, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}, method="POST"), timeout=30)
+        return
+    except Exception:
+        pass  # аккаунта нет или сервер недоступен — пробуем локальную базу
     from app.db import session
     with session() as c:
         uid = c.execute("SELECT id FROM user WHERE email = ?", (EMAIL,)).fetchone()

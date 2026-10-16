@@ -433,3 +433,34 @@ hr.sep { border: 0; height: 16px; background: var(--orn); opacity: .55; margin: 
 @media (max-width: 760px) { .say-actions .scan-btn { flex: 1 1 100%; } }
 .dp-actions { align-items: flex-start; }
 @media (max-width: 760px) { .dp-actions > button { flex: 1 1 100%; } .inline-pay input { flex: 1; } }
+
+/* ---------- удаление аккаунта ---------- */
+.danger-zone { border-color: var(--bad); box-shadow: inset 4px 0 0 var(--bad); }
+.danger-zone h2 { color: var(--bad); }
+
+/* ---------- заметные статусы: плашка с цветным фоном, рамкой и иконкой ---------- */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 700 15px/1.2 var(--f-body); letter-spacing: 0;
+  padding: 6px 12px; border-radius: 10px;
+  background: #eef1f6; color: #3d4659; border: 1.5px solid #d5dbe6;
+}
+.pill.ok   { background: #e3f5ea; color: #136b39; border-color: #9fd8b6; }
+.pill.warn { background: #fff3cf; color: #7a5300; border-color: #f0cf6a; }
+.pill.bad  { background: #fde6e4; color: #a8241b; border-color: #f2a39b; }
+.pill.ai   { background: var(--brand-soft); color: var(--brand); border-color: #b9cbef; }
+.pill.ok::before   { content: "✓"; font-weight: 800; }
+.pill.warn::before { content: "⏳"; }
+.pill.bad::before  { content: "⚠"; }
+.pill.big { font-size: 18px; padding: 8px 14px; }
+.chips-row { gap: 8px; }
+/* живая синхронизация в шапке */
+.live { font: 700 14px/1 var(--f-body); padding: 7px 11px; border-radius: 10px; background: #eef1f6; color: var(--muted); border: 1.5px solid #d5dbe6; }
+.live.on { background: #e3f5ea; color: #136b39; border-color: #9fd8b6; }
+/* статус подтверждения долга на кассе */
+.consent-status { display: inline-flex; align-items: center; gap: 8px; font: 700 20px/1.2 var(--f-body);
+  padding: 10px 16px; border-radius: 12px; background: #fff3cf; color: #7a5300; border: 2px solid #f0cf6a; }
+.consent-status.ok  { background: #e3f5ea; color: #136b39; border-color: #9fd8b6; }
+.consent-status.bad { background: #fde6e4; color: #a8241b; border-color: #f2a39b; }
+/* статус голоса */
+.voice-status:not(:empty) { display: inline-block; font-weight: 700; padding: 6px 12px; border-radius: 10px; background: var(--brand-soft); color: var(--brand); }
