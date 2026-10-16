@@ -561,11 +561,16 @@ def list_debts(m: Me = Depends(current)):
             "FROM customer WHERE shop_id = ? AND balance > 0 ORDER BY due IS NULL, due, balance DESC", (m.shop_id,)
         ).fetchall()
         result = []
+        # Товары всех открытых долгов магазина — одним запросом (в облачной базе каждый запрос стоит времени)
+        items = {row[0]: row[1] for row in c.execute(
+            "SELECT sale_id, group_concat(name, ', ') FROM sale_item WHERE sale_id IN "
+            "(SELECT id FROM sale WHERE shop_id = ? AND kind = 'debt' AND status IN ('pending', 'confirmed')) GROUP BY sale_id",
+            (m.shop_id,)).fetchall()}
         for r in rows:
             sales = open_debts(c, r["id"])
             for s in sales:
                 s["debt"] = s["left"]  # показываем остаток с учётом частичных возвратов
-                s["items"] = c.execute("SELECT group_concat(name, ', ') FROM sale_item WHERE sale_id = ?", (s["id"],)).fetchone()[0]
+                s["items"] = items.get(s["id"])
             result.append({**dict(r), "overdue": bool(r["due"] and r["due"] < today), "sales": sales[::-1]})
     return result
 

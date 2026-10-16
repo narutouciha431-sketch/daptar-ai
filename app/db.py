@@ -8,6 +8,7 @@ import os
 import re
 import secrets
 import sqlite3
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -293,9 +294,15 @@ class Cursor:
 class TursoConnection:
     """Соединение с Turso с тем же интерфейсом, что использует код: execute, executemany, commit, close."""
 
+    # Подключение к облаку дорогое (~0,15 с), поэтому держим одно открытое на каждый поток и используем повторно
+    _local = threading.local()
+
     def __init__(self):
-        import libsql  # нужен только на сервере
-        self._conn = libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            import libsql  # нужен только на сервере
+            conn = self._local.conn = libsql.connect(TURSO_URL, auth_token=TURSO_TOKEN)
+        self._conn = conn
 
     def execute(self, sql, params=()):
         try:
@@ -303,7 +310,17 @@ class TursoConnection:
         except ValueError as e:  # libsql сообщает о нарушении ограничений как ValueError
             if "constraint" in str(e).lower():
                 raise sqlite3.IntegrityError(str(e)) from e
+            self._local.conn = None  # связь могла оборваться — следующий запрос подключится заново
             raise
+        except Exception:
+            self._local.conn = None
+            raise
+
+    def rollback(self):
+        try:
+            self._conn.rollback()
+        except Exception:
+            self._local.conn = None
 
     def executemany(self, sql, seq):
         for params in seq:
@@ -316,7 +333,7 @@ class TursoConnection:
         self._conn.commit()
 
     def close(self):
-        self._conn.close()
+        pass  # подключение остаётся открытым для следующих запросов этого потока
 
 
 def connect() -> sqlite3.Connection:
@@ -337,6 +354,9 @@ def session():
     try:
         yield conn
         conn.commit()
+    except BaseException:
+        conn.rollback()  # незавершённые изменения не должны попасть в следующий запрос
+        raise
     finally:
         conn.close()
 
