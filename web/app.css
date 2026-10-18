@@ -578,9 +578,6 @@ body.no-scroll .tabs, body.no-scroll .pay-panel { display: none; }
   .pay-panel.is-empty { display: none; }
   .pay-panel { gap: 8px; padding-top: 10px; }
   .pay-panel .total-row b { font-size: 30px; }
-  .opts-toggle { display: block; background: none; border: 0; color: var(--brand); font: 600 15px var(--f-body); text-align: left; padding: 0; min-height: 30px; }
-  .pay-panel .debt-opts { display: none; }
-  .pay-panel.opts-open .debt-opts { display: grid; }
 }
 
 /* ---------- WhatsApp ---------- */
@@ -588,3 +585,12 @@ button.wa { background: #25d366; color: #fff; border: 0; font-weight: 700; }
 button.wa:hover:not(:disabled) { background: #1ebe5b; }
 .wa-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
 @media (max-width: 760px) { .wa-row button { flex: 1 1 auto; } .dp-actions .wa { flex: 1 1 100%; } }
+
+/* --- шаг «В долг»: сколько дал сейчас --- */
+.debt-step { display: grid; gap: 10px; }
+.debt-step[hidden] { display: none; }
+.debt-step .paid-now input { font-size: 24px; font-weight: 700; min-height: 54px; }
+.quick-pay { display: flex; gap: 8px; }
+.debt-left { margin: 0; font-size: 18px; }
+.debt-left b { font-size: 24px; color: var(--warn); }
+.debt-step .pay-buttons { grid-template-columns: 1fr 2fr; }

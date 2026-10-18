@@ -78,7 +78,7 @@ def shots(browser):
     page.fill("#say", "Айгүл апай екі нан бір сүт бір шай қарызға")
     page.click("#sayForm button[type=submit]"); page.wait_for_timeout(2500)
     page.screenshot(path=str(IMG / "site-kassa.png"))
-    page.click("#btnDebt"); page.wait_for_timeout(2500)
+    page.click("#btnDebt"); page.wait_for_timeout(400); page.click("#debtConfirm"); page.wait_for_timeout(2500)
     page.screenshot(path=str(IMG / "site-consent.png"), full_page=False)
 
     page.goto(BASE + "/app#kassa"); page.wait_for_load_state("networkidle"); page.wait_for_timeout(1000)

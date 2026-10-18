@@ -113,10 +113,17 @@ def main():
         qty = page.locator("#cart input.qty").first.input_value() if page.locator("#cart input.qty").count() else "нет"
         check("касса разобрала фразу", qty == "2", f"количество хлеба: {qty}")
         before = page.evaluate("fetch('/api/sales?limit=200').then(r => r.json()).then(a => a.length)")
-        page.dblclick("#btnDebt")
+        page.click("#btnDebt")  # «В долг» открывает шаг «сколько заплатил сейчас»
+        page.wait_for_timeout(300)
+        page.fill("#paidNow", "200")
+        left = page.text_content("#debtLeft")
+        check("шаг «В долг»: остаток считается сам", left.replace(" ", " ").startswith("200"), f"в долг останется: {left}")
+        page.dblclick("#debtConfirm")
         page.wait_for_timeout(2000)
-        after = page.evaluate("fetch('/api/sales?limit=200').then(r => r.json()).then(a => a.length)")
-        check("двойной клик «В долг» создаёт одну запись", after - before == 1, f"создано записей: {after - before}")
+        sales = page.evaluate("fetch('/api/sales?limit=200').then(r => r.json())")
+        after = len(sales)
+        check("двойной клик «Записать долг» создаёт одну запись", after - before == 1, f"создано записей: {after - before}")
+        check("частичная оплата 200 ₸ вычтена из долга", sales[0].get("paid_now") == 200, f"заплатил сразу: {sales[0].get('paid_now')}")
         check("после долга показан QR согласия", page.locator("#notice img[alt*=QR]").count() == 1)
         page.screenshot(path=str(SHOTS / "desktop-kassa-consent.png"), full_page=True)
 

@@ -91,14 +91,20 @@ async function renderKassa() {
       <aside class="kassa-side" aria-label="Оплата">
         <div class="card pay-panel">
           <div class="total-row"><span>Итого</span><b id="total">0 ₸</b></div>
-          <button type="button" class="opts-toggle" id="optsToggle" aria-expanded="false">Срок и частичная оплата ▾</button>
-          <div class="debt-opts">
-            <label>Заплатил сейчас, ₸<input id="paidNow" type="number" inputmode="numeric" min="0" step="1" value="0"></label>
-            <label>Вернуть через<select id="due"><option value="7">7 дней</option><option value="14" selected>14 дней</option><option value="30">30 дней</option></select></label>
-          </div>
-          <div class="pay-buttons">
-            <button class="btn-paid" id="btnPaid">Оплачено</button>
+          <div class="pay-buttons" id="payMain">
+            <button class="btn-paid" id="btnPaid">Оплачено полностью</button>
             <button class="btn-debt" id="btnDebt">В долг</button>
+          </div>
+          <!-- Шаг «В долг»: сколько дал сейчас — остальное записывается в долг -->
+          <div class="debt-step" id="debtStep" hidden>
+            <label class="paid-now">Сколько заплатил сейчас, ₸<input id="paidNow" type="number" inputmode="numeric" min="0" step="1" value="0"></label>
+            <div class="quick-pay"><button type="button" class="ghost small" data-quick="0">Ничего</button><button type="button" class="ghost small" data-quick="half">Половину</button></div>
+            <label>Вернуть через<select id="due"><option value="7">7 дней</option><option value="14" selected>14 дней</option><option value="30">30 дней</option></select></label>
+            <p class="debt-left">В долг останется: <b id="debtLeft">0 ₸</b></p>
+            <div class="pay-buttons">
+              <button type="button" class="ghost" id="debtCancel">Назад</button>
+              <button type="button" class="btn-debt" id="debtConfirm">Записать долг</button>
+            </div>
           </div>
         </div>
         <details class="card feed-card" id="feedCard" open>
@@ -149,6 +155,11 @@ async function renderKassa() {
   const total = () => state.items.reduce((s, it) => s + Math.round(it.qty * it.price), 0);
 
   let shownCart = false;
+  function updateDebtLeft() {
+    const paid = Math.min(Math.max(0, Number($('paidNow').value) || 0), total());
+    $('debtLeft').textContent = money(total() - paid);
+  }
+  function closeDebtStep() { $('debtStep').hidden = true; $('payMain').hidden = false; }
   function renderCart() {
     $('cart').innerHTML = state.items.length ? state.items.map((it, i) => `
       <tr>
@@ -166,6 +177,8 @@ async function renderKassa() {
     shownCart = state.items.length > 0;
     if (state.paidNow > total()) state.paidNow = total();
     $('paidNow').value = state.paidNow;
+    updateDebtLeft();
+    if (!state.items.length) closeDebtStep();
   }
 
   function addItem(p, qty = 1) {
@@ -224,7 +237,7 @@ async function renderKassa() {
           if (!(amount > 0)) { toast('Укажите сумму', true); return; }
           const res = await api('/api/payments', { method: 'POST', body: { customer_id: c.id, amount, method: b.dataset.pay } });
           toast(`Принято ${money(res.accepted)}. Осталось: ${money(res.balance)}`);
-          reset(); await loadRefs(); loadFeed();
+          reset(); closeDebtStep(); await loadRefs(); loadFeed();
         } catch (err) { toast(err.message, true); }
       });
       return;
@@ -369,7 +382,8 @@ async function renderKassa() {
     if (v === 'new') $('newName').focus();
   };
   $('newName').oninput = () => (state.newName = $('newName').value);
-  $('paidNow').oninput = () => (state.paidNow = Math.max(0, Number($('paidNow').value) || 0));
+  $('paidNow').oninput = () => { state.paidNow = Math.max(0, Number($('paidNow').value) || 0); updateDebtLeft(); };
+  $('paidNow').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); checkout('debt'); } };
 
   $('cart').addEventListener('input', e => {
     if (!e.target.classList.contains('qty')) return;
@@ -435,12 +449,22 @@ async function renderKassa() {
       $('aiAgain').onclick = aiMatch;
     } catch (err) { box.innerHTML = `<p class="notice-line">${esc(err.message)}</p>`; }
   }
-  $('optsToggle').onclick = e => {
-    const open = document.querySelector('.pay-panel').classList.toggle('opts-open');
-    e.currentTarget.setAttribute('aria-expanded', open);
-  };
   $('btnPaid').onclick = () => checkout('paid');
-  $('btnDebt').onclick = () => checkout('debt');
+  // «В долг» сначала спрашивает, сколько покупатель дал сейчас; остаток уходит в долг
+  $('btnDebt').onclick = () => {
+    if (!state.items.length) { toast('Корзина пуста', true); return; }
+    const sel = $('cust').value;
+    if (!sel || (sel === 'new' && !$('newName').value.trim())) { toast('Выберите покупателя для долга', true); $('cust').focus(); return; }
+    $('payMain').hidden = true; $('debtStep').hidden = false;
+    $('paidNow').value = state.paidNow; updateDebtLeft();
+    $('paidNow').focus(); $('paidNow').select();
+  };
+  $('debtCancel').onclick = closeDebtStep;
+  $('debtConfirm').onclick = () => checkout('debt');
+  document.querySelectorAll('[data-quick]').forEach(b => b.onclick = () => {
+    state.paidNow = b.dataset.quick === 'half' ? Math.round(total() / 2) : 0;
+    $('paidNow').value = state.paidNow; updateDebtLeft();
+  });
 
   // Скан с телефона или изменения на другом экране
   listeners.add(async msg => {
