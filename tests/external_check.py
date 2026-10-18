@@ -83,12 +83,21 @@ with sync_playwright() as p:
 
         # новые экраны: кнопка «Сканер» в кассе, сканер в товарах, папки в долгах, оплата сервиса
         has(page, "#scanBtn"); page.click("#scanBtn")
-        check(has(page, "#scanBody img[src*='mode=cart']"), f"[{name}] касса → Сканер → QR в режиме «в заказ»")
+        if name == "phone":  # телефон: камера открывается прямо на странице, «Готово» возвращает в кассу
+            check(has(page, ".scan-overlay"), f"[{name}] касса → Сканер → камера поверх кассы")
+            page.click("#soDone"); page.wait_for_timeout(400)
+            check(page.locator(".scan-overlay").count() == 0 and has(page, "#say"), f"[{name}] «Готово» вернул в кассу")
+        else:
+            check(has(page, "#scanBody img[src*='mode=cart']"), f"[{name}] касса → Сканер → QR в режиме «в заказ»")
         page.click("[data-scan=ai]"); page.wait_for_timeout(300)
         check(page.locator("#aiShot").count() == 1, f"[{name}] касса → Сканер → режим «по фото (ИИ)»")
         page.goto(f"{BASE}/app#products"); page.wait_for_load_state("networkidle"); page.wait_for_timeout(800)
         has(page, "#phoneScanP"); page.click("#phoneScanP")
-        check(has(page, "#scannerCardP img[src*='mode=price']"), f"[{name}] товары → Сканер на телефоне (режим «в прайс»)")
+        if name == "phone":
+            check(has(page, ".scan-overlay"), f"[{name}] товары → сканер прямо на странице")
+            page.click("#soDone"); page.wait_for_timeout(300)
+        else:
+            check(has(page, "#scannerCardP img[src*='mode=price']"), f"[{name}] товары → Сканер на телефоне (режим «в прайс»)")
         page.goto(f"{BASE}/app#debts"); page.wait_for_load_state("networkidle"); page.wait_for_timeout(1200)
         if page.locator(".debt-tile").count():
             page.locator(".debt-tile").first.click(); page.wait_for_timeout(1500)

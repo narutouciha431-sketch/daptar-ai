@@ -118,7 +118,11 @@ async function renderCustomers() {
   const statusCls = s => ({ pending: 'warn', confirmed: 'ok', rejected: 'bad', closed: 'ok' }[s] || '');
   const statusText = s => ({ pending: 'ждёт подтверждения', confirmed: 'подтверждён', rejected: 'отклонён', closed: 'закрыт' }[s] || s);
 
-  $('crows').addEventListener('click', e => { const tr = e.target.closest('tr[data-id]'); if (tr) showDetail(Number(tr.dataset.id)); });
+  $('crows').addEventListener('click', async e => {
+    const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+    await showDetail(Number(tr.dataset.id));
+    if (innerWidth <= 960) $('detail').scrollIntoView({ behavior: 'smooth', block: 'start' });  // на телефоне карточка ниже списка
+  });
   $('crows').addEventListener('keydown', e => { const tr = e.target.closest('tr[data-id]'); if (tr && e.key === 'Enter') showDetail(Number(tr.dataset.id)); });
 
   $('custForm').addEventListener('submit', async e => {
@@ -134,7 +138,7 @@ async function renderCustomers() {
   $('cq').addEventListener('input', () => { clearTimeout(t); t = setTimeout(load, 200); });
 
   listeners.add(msg => {
-    if (['customers_changed', 'sale_created', 'payment_created'].includes(msg.type)) { load(); if (selected) showDetail(selected).catch(() => { selected = null; }); }
+    if (['customers_changed', 'sale_created', 'payment_created', 'refresh'].includes(msg.type)) { load(); if (selected) showDetail(selected).catch(() => { selected = null; }); }
   });
 
   await load();

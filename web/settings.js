@@ -71,7 +71,9 @@ async function renderSettings() {
         ? `<p><span class="pill ok">подключён${s.owner_username ? ': @' + esc(s.owner_username) : ''}</span></p>
            <p class="sub">Уведомления о подтверждениях, оплатах и отчёт в ${esc(s.report_time)} приходят только в этот Telegram.</p>
            <button type="button" class="ghost small" id="ownerUnlink">Отвязать Telegram</button>`
-        : `<p>Отсканируйте QR телефоном владельца — бот @${esc(s.bot_username)} будет присылать уведомления и вечерний отчёт.</p>
+        : `<a class="tg-btn" href="${esc(s.owner_link)}" target="_blank" rel="noopener">✈️ Подключить в Telegram</a>
+           <p class="sub">Откроется бот @${esc(s.bot_username)} — нажмите «Start» и вернитесь сюда, статус обновится сам.</p>
+           <p>Или отсканируйте QR телефоном владельца — бот будет присылать уведомления и вечерний отчёт.</p>
            <div class="qr-box"><img src="/api/shop/owner-qr.svg?${Date.now()}" alt="QR для подключения владельца" width="200" height="200"></div>
            <p class="sub">Или откройте ссылку: <a href="${esc(s.owner_link)}" target="_blank" rel="noopener">${esc(s.owner_link)}</a></p>`;
     $('demoResetBox').hidden = !s.is_demo;
@@ -134,6 +136,6 @@ async function renderSettings() {
     try { const r = await api('/api/demo/clear', { method: 'POST' }); toast(`Удалено демо-продаж: ${r.deleted}`); b.dataset.confirm = ''; b.textContent = 'Удалить демо-историю'; load(); }
     catch (err) { toast(err.message, true); }
   };
-  listeners.add(msg => { if (['owner_linked', 'shop_changed', 'sale_created', 'payment_created'].includes(msg.type)) load(); });
+  listeners.add(msg => { if (['owner_linked', 'shop_changed', 'sale_created', 'payment_created', 'refresh'].includes(msg.type)) load(); });
   await load();
 }

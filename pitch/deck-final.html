@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Дәптер AI — Мейрамбек Нұрасыл</title>
+<!-- Шрифты с казахскими буквами (проверено): Geologica — заголовки, Commissioner — текст, Caveat — пометки ручкой -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;600;800&family=Commissioner:wght@300;400;600&family=Caveat:wght@600;700&display=swap">
+<style>
+/* ===========================================
+   ТЕМА: «ЧЕРНИЛА, ЗОЛОТО И ТЕТРАДЬ»
+   Тёмные слайды — чернила и золото (солидность);
+   светлые — страница дәптера в клетку с красной линией полей и пометками ручкой.
+   =========================================== */
+:root {
+  --night: #0b1736;
+  --paper: #fbfcfe;
+  --grid: rgba(31, 79, 180, .09);
+  --text: #eef2fb;
+  --muted: #9fb0d4;
+  --ink: #1f4fb4;
+  --ink-deep: #0b1736;
+  --gold: #e5b83a;
+  --gold-soft: rgba(229, 184, 58, .14);
+  --margin: #e0574f;
+  --f-head: 'Geologica', sans-serif;
+  --f-body: 'Commissioner', sans-serif;
+  --f-hand: 'Caveat', cursive;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --stage-bg: #050b1c;
+  --slide-bg: var(--night);
+  --orn: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='16' viewBox='0 0 44 16'%3E%3Cpath d='M3 14C3 5 11 2 15 6.5c3 3.3-.5 7-3.5 5-2-1.4-.4-4 1.4-3M41 14c0-9-8-12-12-7.5-3 3.3.5 7 3.5 5 2-1.4.4-4-1.4-3M15 6.5Q22 0 29 6.5' fill='none' stroke='%23E5B83A' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* === FIXED 16:9 STAGE: viewport-base.css (полностью) === */
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--stage-bg, #000); }
+.deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--stage-bg, #000); }
+.deck-stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; background: var(--slide-bg, #fff); }
+.slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; display: block; visibility: hidden; opacity: 0; pointer-events: none; background: var(--slide-bg, #fff); }
+.slide.active, .slide.visible { visibility: visible; opacity: 1; pointer-events: auto; z-index: 1; }
+img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+.deck-controls { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 1000; }
+@media print {
+  html, body { width: 1920px; height: auto; overflow: visible; background: #fff; }
+  .deck-viewport { position: static; overflow: visible; background: #fff; }
+  .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; }
+  .slide { position: relative; display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px; break-after: page; page-break-after: always; }
+  .slide:last-child { break-after: auto; page-break-after: auto; }
+  .deck-controls { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.2s !important; } }
+
+/* === ТЁМНЫЕ СЛАЙДЫ: чернила с золотым светом === */
+.slide {
+  background:
+    radial-gradient(900px 600px at 85% 10%, rgba(229,184,58,.10), transparent 60%),
+    radial-gradient(1100px 800px at 0% 100%, rgba(80,120,230,.18), transparent 60%),
+    var(--night);
+  color: var(--text); font-family: var(--f-body);
+}
+/* === СВЕТЛЫЕ СЛАЙДЫ: страница тетради в клетку === */
+.slide.paper {
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 40px 40px,
+    var(--paper);
+  color: #13204a;
+}
+.slide.paper::before { content: ""; position: absolute; top: 0; bottom: 0; left: 88px; width: 3px; background: var(--margin); opacity: .7; }
+.slide.paper p { color: #4a5677; }
+.slide.paper h2 { color: var(--ink-deep); }
+
+.orn { position: absolute; left: 0; right: 0; height: 18px; background: var(--orn) repeat-x center / 52px 18px; opacity: .85; }
+.page { position: absolute; left: 140px; right: 120px; top: 100px; bottom: 100px; }
+.brand { position: absolute; left: 140px; bottom: 52px; font: 600 22px/1 var(--f-head); color: var(--muted); }
+.brand b { color: var(--gold); }
+.folio { position: absolute; right: 120px; bottom: 48px; font: 700 34px/1 var(--f-hand); color: var(--muted); }
+.paper .folio { color: var(--ink); }
+
+/* === ТИПОГРАФИКА === */
+h1, h2, h3 { font-family: var(--f-head); letter-spacing: -0.035em; }
+h2 { font-weight: 800; font-size: 88px; line-height: .98; max-width: 1150px; }
+.pill { display: inline-block; font: 600 20px/1 var(--f-body); padding: 10px 18px; border-radius: 999px; background: var(--gold-soft); color: var(--gold); margin-bottom: 28px; }
+.paper .pill { background: rgba(224, 87, 79, .1); color: var(--margin); }
+.lead { font-size: 32px; line-height: 1.42; color: var(--muted); max-width: 760px; margin-top: 28px; font-weight: 300; }
+.gold { color: var(--gold); }
+.hand { font: 700 44px/1.1 var(--f-hand); color: var(--ink); }
+.dark .hand, .slide:not(.paper) .hand { color: var(--gold); }
+.mark { background: linear-gradient(transparent 58%, rgba(242,183,5,.55) 58%); padding: 0 6px; }
+.src { position: absolute; font-size: 17px; color: var(--muted); max-width: 1300px; }
+.paper .src { color: #6b7590; }
+
+/* === ДВОЙНАЯ РАМКА: поднос + стекло (фото и скриншоты) === */
+.bezel { position: absolute; padding: 10px; border-radius: 40px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.10); box-shadow: 0 40px 80px -30px rgba(0,0,0,.6); }
+.bezel > .core { width: 100%; height: 100%; border-radius: 30px; overflow: hidden; background: #fff; }
+.bezel img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; max-height: none; }
+.paper .bezel { background: rgba(11,23,54,.04); border-color: rgba(11,23,54,.08); box-shadow: 0 40px 80px -40px rgba(11,23,54,.35); }
+.tilt-l { transform: rotate(-2deg); } .tilt-r { transform: rotate(2deg); }
+/* обведено ручкой */
+.circle { position: absolute; border: 4px solid var(--margin); border-radius: 50%; transform: rotate(-5deg); pointer-events: none; }
+
+/* === ПОЯВЛЕНИЕ === */
+.reveal { opacity: 0; transform: translateY(40px); filter: blur(8px); transition: opacity .9s var(--ease), transform .9s var(--ease), filter .9s var(--ease); }
+.slide.visible .reveal { opacity: 1; transform: none; filter: none; }
+.slide.visible .reveal.tilt-l { transform: rotate(-2deg); } .slide.visible .reveal.tilt-r { transform: rotate(2deg); }
+.slide.visible .d1 { transition-delay: .1s; } .slide.visible .d2 { transition-delay: .2s; } .slide.visible .d3 { transition-delay: .3s; } .slide.visible .d4 { transition-delay: .4s; }
+@media print { .reveal { opacity: 1 !important; filter: none !important; } }
+
+/* === ОБЛОЖКА === */
+.cover h1 { font-weight: 800; font-size: 230px; line-height: .86; margin-top: 150px; }
+.cover h1 span { display: block; color: var(--gold); font-weight: 300; font-size: 120px; letter-spacing: -0.02em; margin-top: 18px; }
+.cover .lead { font-size: 38px; max-width: 800px; margin-top: 48px; color: var(--text); }
+
+/* === БЕНТО (цифры) === */
+.bento { position: absolute; display: grid; gap: 22px; }
+.cell { border-radius: 32px; padding: 34px 36px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); }
+.cell b { display: block; font: 800 110px/0.95 var(--f-head); letter-spacing: -0.05em; color: var(--gold); }
+.cell span { display: block; font-size: 25px; line-height: 1.35; color: var(--text); margin-top: 16px; }
+
+/* === БОЛИ (страница тетради) === */
+.rows { position: absolute; left: 0; right: 0; top: 330px; display: grid; }
+.row { display: grid; grid-template-columns: 330px 1fr 1fr; gap: 40px; align-items: baseline; padding: 34px 0; border-top: 2px dashed rgba(31,79,180,.25); }
+.row .who { font: 700 64px/1 var(--f-hand); color: var(--margin); }
+.row h3 { font-weight: 600; font-size: 36px; line-height: 1.2; color: #13204a; }
+.row p { font-size: 26px; line-height: 1.4; }
+
+/* === ШАГИ И СПИСКИ === */
+.flow { position: absolute; display: grid; gap: 34px; }
+.flow > div { display: grid; grid-template-columns: 80px 1fr; gap: 20px; }
+.flow i { font: 700 80px/0.9 var(--f-hand); color: var(--margin); font-style: normal; }
+.slide:not(.paper) .flow i { color: var(--gold); }
+.flow h3 { font-weight: 600; font-size: 36px; line-height: 1.15; }
+.paper .flow h3 { color: #13204a; }
+.flow p { font-size: 24px; line-height: 1.4; color: var(--muted); margin-top: 6px; }
+
+/* === TELEGRAM === */
+.tg-core { background: #dfe7ea; padding: 26px; display: flex; flex-direction: column; justify-content: flex-end; color: #1b2333; font-family: var(--f-body); }
+.tg-core .bar { font: 600 22px/1 var(--f-head); padding-bottom: 18px; margin-bottom: auto; border-bottom: 1px solid #c7d2d6; }
+.tg-core .bubble { background: #fff; border-radius: 20px 20px 20px 6px; padding: 20px 22px; font-size: 22px; line-height: 1.45; }
+.tg-core .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.tg-core .btns span { background: rgba(255,255,255,.8); border-radius: 12px; text-align: center; padding: 14px 6px; font-weight: 600; font-size: 20px; color: #2a7ab0; }
+
+/* === ДЕНЬГИ === */
+.big-num { font: 800 300px/0.85 var(--f-head); letter-spacing: -0.06em; color: var(--gold); }
+
+/* === ГОТОВО / ДАЛЬШЕ === */
+.list li { list-style: none; font-size: 30px; line-height: 1.3; padding: 18px 0; border-top: 1px solid rgba(255,255,255,.1); display: grid; grid-template-columns: 50px 1fr; }
+.list li::before { content: "✓"; color: var(--gold); font-weight: 600; }
+.list.next li::before { content: "→"; color: var(--muted); }
+.list h3 { font: 700 56px/1 var(--f-hand); color: var(--gold); margin-bottom: 14px; letter-spacing: 0; }
+
+/* === ФИНАЛ: QR на живой сайт === */
+.qr { position: absolute; background: #fff; border-radius: 28px; padding: 22px; }
+.qr img { display: block; width: 100%; height: 100%; }
+
+.deck-controls { font: 600 15px var(--f-body); color: #9fb0d4; background: rgba(255,255,255,.08); padding: 8px 16px; border-radius: 999px; }
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+<main class="deck-stage" id="deckStage">
+
+<!-- ===== 1. ОБЛОЖКА ===== -->
+<section class="slide cover active">
+  <div class="orn" style="top:56px"></div>
+  <div class="page">
+    <h1 class="reveal">Дәптер<span>AI</span></h1>
+    <p class="lead reveal d1">Тетрадь долгов для магазина у дома, которая сама считает и сама напоминает.</p>
+    <p class="hand reveal d2" style="margin-top:40px">«Айгүл апай, екі нан, бір сүт, қарызға» — и долг записан ✓</p>
+  </div>
+  <div class="bezel reveal d2 tilt-r" style="left:1150px; top:190px; width:640px; height:700px"><div class="core"><img src="img/interview1-3.jpg" alt="Продавец магазина у дома в Таразе" style="object-position:62% 50%"></div></div>
+  <p class="brand">Мейрамбек Нұрасыл · <b>Тараз, 2026</b></p>
+</section>
+
+<!-- ===== 2. ПРОБЛЕМА ===== -->
+<section class="slide">
+  <div class="page">
+    <span class="pill reveal">Проблема</span>
+    <h2 class="reveal d1" style="max-width:900px">В магазинах у дома долги пишут в тетрадь</h2>
+  </div>
+  <div class="bento" style="left:140px; top:520px; width:880px; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr">
+    <div class="cell reveal d2" style="grid-row: span 2"><b>51,5%</b><span>жителей области живут в сёлах — там магазины дают в долг «по тетради»</span></div>
+    <div class="cell reveal d3"><b style="font-size:76px">16,9%</b><span>предприятий РК мешает возврат долгов</span></div>
+    <div class="cell reveal d4"><b style="font-size:76px">80%+</b><span>абонентов пользуются WhatsApp</span></div>
+  </div>
+  <div class="bezel reveal d2" style="left:1110px; top:130px; width:690px; height:820px"><div class="core"><img src="img/interview1-1.jpg" alt="Тетрадь долгов на кассе рядом с калькулятором" style="object-position:100% 50%"></div></div>
+  <div class="circle reveal d3" style="left:1365px; top:705px; width:300px; height:130px"></div>
+  <p class="hand reveal d4" style="position:absolute; left:1150px; top:870px; transform:rotate(-3deg); color:#fff; text-shadow:0 2px 12px rgba(0,0,0,.6)">вот она — та самая тетрадь ↑</p>
+  <p class="src" style="left:140px; bottom:48px">Источники: Бюро национальной статистики (2026), опрос Нацбанка РК за II кв. 2026, исследование Wunder Digital.</p>
+</section>
+
+<!-- ===== 3. КОМУ НЕУДОБНО (тетрадь) ===== -->
+<section class="slide paper">
+  <div class="page">
+    <span class="pill reveal">Кому неудобно</span>
+    <h2 class="reveal d1">Тетрадь подводит всех троих</h2>
+    <div class="rows">
+      <div class="row reveal d2"><span class="who">продавец</span><h3>Пишет на ходу и считает в уме</h3><p>В очереди легко ошибиться в сумме или забыть записать.</p></div>
+      <div class="row reveal d3"><span class="who">покупатель</span><h3>Не помнит, сколько должен</h3><p>Запись видит только продавец — подтвердить её нечем.</p></div>
+      <div class="row reveal d4"><span class="who">владелец</span><h3>Не видит, где деньги</h3><p>Продажи за день и долги — только после пересчёта тетради.</p></div>
+    </div>
+  </div>
+  <span class="folio">3</span>
+</section>
+
+<!-- ===== 4. ИНТЕРВЬЮ (тетрадь) ===== -->
+<section class="slide paper">
+  <div class="page">
+    <span class="pill reveal">Интервью</span>
+    <h2 class="reveal d1" style="max-width:760px; font-size:80px">Мы пошли в магазины и спросили</h2>
+    <p class="lead reveal d2" style="max-width:700px">Поговорили с продавцами 2–3 магазинов у дома в Таразе.</p>
+    <div class="flow reveal d2" style="left:0; top:470px; width:700px">
+      <div><i>1</i><section><h3>Долги ведут в тетради прямо на кассе</h3><p>Рядом с калькулятором и Kaspi-терминалом.</p></section></div>
+      <div><i>2</i><section><h3>За сервис удобнее платить <span class="mark">0,5–2%</span> от оборота</h3><p>а не фиксированной подпиской.</p></section></div>
+    </div>
+  </div>
+  <div class="bezel reveal d2 tilt-l" style="left:940px; top:130px; width:520px; height:800px"><div class="core"><img src="img/interview1-4.jpg" alt="Интервью с продавцом" style="object-position:30% 50%"></div></div>
+  <div class="bezel reveal d3 tilt-r" style="left:1480px; top:170px; width:340px; height:380px"><div class="core"><img src="img/interview1-2.jpg" alt="Разговор у кассы" style="object-position:62% 50%"></div></div>
+  <div class="bezel reveal d4" style="left:1480px; top:580px; width:340px; height:350px"><div class="core"><img src="img/interview1-5.jpg" alt="Магазин у дома" style="object-position:40% 50%"></div></div>
+  <p class="hand reveal d4" style="position:absolute; left:960px; top:950px; transform:rotate(-2deg)">магазин у дома, Тараз ↑</p>
+</section>
+
+<!-- ===== 5. РЕШЕНИЕ ===== -->
+<section class="slide">
+  <div class="page">
+    <span class="pill reveal">Решение</span>
+    <h2 class="reveal d1" style="max-width:620px">Сказал вслух — долг записан</h2>
+    <p class="lead reveal d2" style="max-width:540px">По-казахски или по-русски. Дәптер сам находит покупателя, товары и цены.</p>
+    <p class="hand reveal d3" style="margin-top:44px; max-width:520px">без кассовой программы и обучения — как тетрадь, только умная</p>
+  </div>
+  <div class="bezel reveal d2" style="left:820px; top:150px; width:1000px; height:640px"><div class="core"><img src="img/site-kassa.png" alt="Касса Дәптер AI"></div></div>
+  <div class="bezel reveal d3 tilt-l" style="left:700px; top:580px; width:260px; height:450px"><div class="core"><img src="img/phone-kassa.png" alt="Касса на телефоне"></div></div>
+</section>
+
+<!-- ===== 6. КАК РАБОТАЕТ (тетрадь) ===== -->
+<section class="slide paper">
+  <div class="page">
+    <span class="pill reveal">Согласие покупателя</span>
+    <h2 class="reveal d1" style="max-width:900px; font-size:80px">Долг подтверждает сам покупатель</h2>
+  </div>
+  <div class="flow reveal d2" style="left:140px; top:470px; width:620px">
+    <div><i>1</i><section><h3>«В долг» на кассе</h3><p>На экране — QR-код этой покупки.</p></section></div>
+    <div><i>2</i><section><h3>QR → Telegram → «Растаймын»</h3><p>Покупатель видит сумму и срок.</p></section></div>
+    <div><i>3</i><section><h3>Срок подошёл — бот напомнит</h3><p>Со ссылкой на оплату Kaspi.</p></section></div>
+  </div>
+  <div class="bezel reveal d2 tilt-l" style="left:820px; top:300px; width:520px; height:560px"><div class="core"><img src="img/site-consent.png" alt="QR подтверждения долга" style="object-position:12% 48%; transform:scale(1.4); transform-origin:12% 48%"></div></div>
+  <div class="bezel reveal d3 tilt-r" style="left:1380px; top:150px; width:440px; height:760px"><div class="core tg-core">
+    <div class="bar">Дәптер AI · бот</div>
+    <div class="bubble">Сәлеметсіз бе, Айгүл апай!<br><br>«Береке» дүкенінен қарызға алғаныңыз: Нан ×2, Сүт 1 л ×1, Шай 250 г ×1<br><br>Қарыз сомасы: <b>2 150 ₸</b><br>Қайтару мерзімі: <b>30 қазан</b><br><br>Растайсыз ба?</div>
+    <div class="btns"><span>✅ Растаймын</span><span>❌ Жоқ, бұл қате</span></div>
+  </div></div>
+  <p class="hand reveal d4" style="position:absolute; left:900px; top:900px; transform:rotate(-2deg)">не просто запись в тетради — согласие ✓</p>
+  <span class="folio">6</span>
+</section>
+
+<!-- ===== 7. ИИ (тетрадь) ===== -->
+<section class="slide paper">
+  <div class="page">
+    <span class="pill reveal">Искусственный интеллект</span>
+    <h2 class="reveal d1">Где работает ИИ</h2>
+  </div>
+  <div class="bento" style="left:140px; top:400px; width:980px; grid-template-columns: 1.3fr 1fr; grid-auto-rows: 250px">
+    <div class="cell reveal d1" style="background:#0b1736; border:0; grid-row: span 2"><b style="font-size:46px; color:var(--gold)">Понимает речь</b><span style="font-size:27px">Казахские числа словами, «екі нан», «10 дана», ошибки распознавания. Правила + Google Gemini.</span></div>
+    <div class="cell reveal d2" style="background:#fff; border-color:rgba(11,23,54,.08)"><b style="font-size:36px; color:#0b1736">Ценник по фото</b><span style="color:#4a5677; font-size:23px">Название, цена, синонимы — прайс за минуты</span></div>
+    <div class="cell reveal d3" style="background:#fff; border-color:rgba(11,23,54,.08)"><b style="font-size:36px; color:#0b1736">Товар по фото</b><span style="color:#4a5677; font-size:23px">Нет штрихкода — 3 похожих из прайса</span></div>
+  </div>
+  <p class="reveal d4" style="position:absolute; left:140px; top:940px; width:980px; font-size:24px">+ советы владельцу по цифрам за 30 дней. В ИИ уходят только суммы и товары — без имён и телефонов.</p>
+  <div class="bezel reveal d2 tilt-r" style="left:1180px; top:180px; width:640px; height:760px"><div class="core"><img src="img/site-scan-choice.png" alt="Сканер: по штрихкоду или по фото" style="object-position:12% 0"></div></div>
+  <span class="folio">7</span>
+</section>
+
+<!-- ===== 8. ДЛЯ ВЛАДЕЛЬЦА ===== -->
+<section class="slide">
+  <div class="page">
+    <span class="pill reveal">Для владельца</span>
+    <h2 class="reveal d1" style="max-width:560px; font-size:80px">Весь магазин в одном экране</h2>
+    <p class="lead reveal d2" style="max-width:520px">Что сделать сегодня, кто просрочил, сколько вернули. Вечером — отчёт в Telegram.</p>
+    <p class="hand reveal d3" style="margin-top:36px; max-width:520px">на русском и казахском — кнопка «Қаз / Рус»</p>
+  </div>
+  <div class="bezel reveal d2" style="left:760px; top:110px; width:1060px; height:560px"><div class="core"><img src="img/site-cabinet.png" alt="Кабинет владельца"></div></div>
+  <div class="bezel reveal d3" style="left:760px; top:700px; width:520px; height:300px"><div class="core"><img src="img/site-analytics.png" alt="Аналитика" style="object-position:0 20%"></div></div>
+  <div class="bezel reveal d4" style="left:1300px; top:700px; width:520px; height:300px"><div class="core"><img src="img/site-debt-panel.png" alt="Долги по папкам" style="object-position:50% 20%"></div></div>
+</section>
+
+<!-- ===== 9. ДЕНЬГИ ===== -->
+<section class="slide">
+  <div class="page">
+    <span class="pill reveal">Бизнес-модель</span>
+    <h2 class="reveal d1" style="max-width:900px; font-size:80px">Платит, только когда получает деньги</h2>
+    <div class="reveal d2" style="position:absolute; left:0; top:430px"><span class="big-num">0,5–2%</span></div>
+    <p class="lead reveal d3" style="position:absolute; left:0; top:720px; max-width:900px; color:var(--text)">от реально полученных денег: оплаченные продажи + возвращённые долги. Старт бесплатный. С покупателей — ничего.</p>
+  </div>
+  <div class="cell reveal d4" style="position:absolute; left:1240px; top:430px; width:560px">
+    <span style="margin:0; color:var(--muted)">Пример: демо-магазин за октябрь</span>
+    <span style="font-size:30px">838 400 ₸ продаж<br>+ 49 250 ₸ возвращённых долгов</span>
+    <b style="font-size:84px; margin-top:24px">8 876 ₸</b><span style="margin-top:6px; color:var(--muted)">1% в месяц — счёт с реквизитами Kaspi приходит в Telegram</span>
+  </div>
+  <p class="src" style="left:140px; bottom:48px">Ставка — по итогам интервью с магазинами.</p>
+</section>
+
+<!-- ===== 10. ГОТОВО И ДАЛЬШЕ ===== -->
+<section class="slide">
+  <div class="page">
+    <span class="pill reveal">Статус</span>
+    <h2 class="reveal d1">Прототип уже работает</h2>
+    <div style="position:absolute; left:0; right:0; top:340px; display:grid; grid-template-columns:1fr 1fr; gap:110px">
+      <ul class="list reveal d2"><h3>готово</h3>
+        <li>Касса: голос, текст, сканер, ИИ по фото</li><li>Долги с QR-согласием и напоминаниями</li>
+        <li>Telegram-бот для покупателя и владельца</li><li>Кабинет и аналитика, қазақша / русский</li>
+        <li>Работает 24/7: daptar-ai.onrender.com</li></ul>
+      <ul class="list next reveal d3"><h3>дальше</h3>
+        <li>Пилот в магазинах, где провели интервью</li><li>Распознавание речи на сервере для шумного магазина</li>
+        <li>Свой адрес и ускорение сервера</li><li>Больше магазинов Тараза и области</li></ul>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 11. ФИНАЛ ===== -->
+<section class="slide cover">
+  <div class="orn" style="bottom:56px"></div>
+  <div class="page">
+    <h1 class="reveal" style="font-size:200px; margin-top:110px">Рахмет<span style="font-size:58px; max-width:1100px; line-height:1.1">Дәптер AI — тетрадь, которая сама напоминает</span></h1>
+    <div class="reveal d2" style="position:absolute; left:0; bottom:70px; display:grid; gap:14px; font-size:30px; color:var(--muted)">
+      <div><b style="color:var(--text); font-weight:600">Мейрамбек Нұрасыл</b></div>
+      <div>Сайт: <span style="color:var(--gold)">daptar-ai.onrender.com</span> — кнопка «Посмотреть демо-магазин»</div>
+      <div>Код: github.com/narutouciha431-sketch/daptar-ai</div>
+    </div>
+  </div>
+  <div class="qr reveal d2" style="left:1380px; top:240px; width:420px; height:420px"><img src="img/qr-site.svg" alt="QR-код: сайт Дәптер AI"></div>
+  <p class="hand reveal d3" style="position:absolute; left:1390px; top:690px">наведите камеру — откроется сайт</p>
+</section>
+
+</main>
+</div>
+<div class="deck-controls" id="counter">1 / 11</div>
+<script>
+/* Управление: стрелки, пробел, колесо, свайп; масштаб сцены 1920×1080; E — правка текста */
+class SlidePresentation {
+  constructor() {
+    this.slides = [...document.querySelectorAll('.slide')]; this.i = 0;
+    this.stage = document.getElementById('deckStage'); this.counter = document.getElementById('counter');
+    const fit = () => { const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+      this.stage.style.transform = `translate(${(innerWidth - 1920 * k) / 2}px, ${(innerHeight - 1080 * k) / 2}px) scale(${k})`; };
+    fit(); addEventListener('resize', fit);
+    addEventListener('keydown', e => {
+      if (['ArrowRight', 'ArrowDown', ' ', 'PageDown'].includes(e.key)) { e.preventDefault(); this.go(this.i + 1); }
+      if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); this.go(this.i - 1); }
+      if ('eEуУ'.includes(e.key)) { const on = document.body.toggleAttribute('data-edit'); document.querySelectorAll('h1,h2,h3,p,li,.cell span,.cell b').forEach(el => { el.contentEditable = on; }); }
+    });
+    let lock = 0; addEventListener('wheel', e => { if (Date.now() - lock < 600) return; lock = Date.now(); this.go(this.i + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
+    let x0 = null; addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+    addEventListener('touchend', e => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) this.go(this.i + (dx < 0 ? 1 : -1)); x0 = null; });
+    this.go(0);
+  }
+  go(n) { this.i = Math.max(0, Math.min(n, this.slides.length - 1));
+    this.slides.forEach((s, k) => { s.classList.toggle('active', k === this.i); s.classList.toggle('visible', k === this.i); });
+    this.counter.textContent = `${this.i + 1} / ${this.slides.length}`; }
+}
+new SlidePresentation();
+</script>
+</body>
+</html>

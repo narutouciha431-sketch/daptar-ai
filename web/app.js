@@ -105,6 +105,14 @@ function connectLive() {
   window.liveSocket = ws;
 }
 
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { hiddenAt = Date.now(); return; }
+  if (Date.now() - hiddenAt < 1500) return;
+  if (!window.liveSocket || window.liveSocket.readyState > 1) connectLive();
+  listeners.forEach(fn => fn({ type: 'refresh' }));
+});
+
 // ---------- страницы ----------
 const pages = {
   kassa: renderKassa,          // web/kassa.js
@@ -267,7 +275,17 @@ async function renderProducts() {
   });
 
   // Фото ценника → ИИ заполняет название, цену и синонимы
+  if (isTouch) document.getElementById('phoneScanP').textContent = '📷 Сканер штрихкодов';
   document.getElementById('phoneScanP').onclick = () => {
+    if (isTouch) {
+      // Телефон: камера прямо здесь; незнакомый штрихкод сразу попадает в форму нового товара
+      openScanner({ mode: 'price', onUnknown: code => {
+        document.getElementById('f-barcode').value = code;
+        document.getElementById('f-name').focus();
+        toast('Новый штрихкод ' + code + ': впишите название и цену');
+      } });
+      return;
+    }
     const card = document.getElementById('scannerCardP');
     if (!card.hidden) { card.hidden = true; return; }
     showScannerQr(card, 'price');

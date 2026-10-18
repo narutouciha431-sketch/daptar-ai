@@ -143,6 +143,6 @@ async function renderDebts() {
   $('debtList').addEventListener('click', e => { const t = e.target.closest('.debt-tile'); if (t) openPanel(Number(t.dataset.id)); });
   document.querySelectorAll('.debt-tools [data-f]').forEach(b => b.onclick = () => { debtFilter = b.dataset.f; load(); });
   $('dSort').onchange = e => { debtSort = e.target.value; load(); };
-  listeners.add(msg => { if (['sale_created', 'payment_created', 'consent_changed', 'customers_changed', 'reminder_sent'].includes(msg.type)) load(); });
+  listeners.add(msg => { if (['sale_created', 'payment_created', 'consent_changed', 'customers_changed', 'reminder_sent', 'refresh'].includes(msg.type)) load(); });
   await load();
 }

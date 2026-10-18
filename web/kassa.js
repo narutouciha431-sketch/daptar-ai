@@ -91,6 +91,7 @@ async function renderKassa() {
       <aside class="kassa-side" aria-label="Оплата">
         <div class="card pay-panel">
           <div class="total-row"><span>Итого</span><b id="total">0 ₸</b></div>
+          <button type="button" class="opts-toggle" id="optsToggle" aria-expanded="false">Срок и частичная оплата ▾</button>
           <div class="debt-opts">
             <label>Заплатил сейчас, ₸<input id="paidNow" type="number" inputmode="numeric" min="0" step="1" value="0"></label>
             <label>Вернуть через<select id="due"><option value="7">7 дней</option><option value="14" selected>14 дней</option><option value="30">30 дней</option></select></label>
@@ -147,6 +148,7 @@ async function renderKassa() {
   // ---------- корзина ----------
   const total = () => state.items.reduce((s, it) => s + Math.round(it.qty * it.price), 0);
 
+  let shownCart = false;
   function renderCart() {
     $('cart').innerHTML = state.items.length ? state.items.map((it, i) => `
       <tr>
@@ -158,6 +160,10 @@ async function renderKassa() {
       </tr>`).join('') : `<tr><td colspan="5"><div class="cart-empty"><span class="big" aria-hidden="true">0</span><div><b>Заказ пуст</b>Скажите фразу, нажмите «Примеры фраз» или отсканируйте товар телефоном.</div></div></td></tr>`;
     $('total').textContent = money(total());
     $('cartTable').classList.toggle('is-empty', !state.items.length);
+    // Телефон: пустой заказ — панель оплаты не закрывает экран; первый товар — показываем заказ
+    document.querySelector('.pay-panel').classList.toggle('is-empty', !state.items.length);
+    if (state.items.length && !shownCart && innerWidth <= 760) $('cartTable').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    shownCart = state.items.length > 0;
     if (state.paidNow > total()) state.paidNow = total();
     $('paidNow').value = state.paidNow;
   }
@@ -263,10 +269,19 @@ async function renderKassa() {
           <p>Покупатель сканирует QR камерой телефона → открывается Telegram → он нажимает <b>«Растаймын»</b>.</p>
           ${sale.consent_sent ? '<p class="sub">Покупатель уже подключён к боту — запрос отправлен ему в Telegram.</p>' : ''}
           <p class="consent-status" id="consentStatus">⏳ Ждём подтверждения…</p>
+          ${sale.consent_link ? '<button type="button" class="ghost" id="consentShare">📤 Отправить ссылку покупателю</button>' : ''}
           <button type="button" class="ghost small" id="consentSkip">Пропустить</button>
         </div>
       </div>`);
     $('consentSkip').onclick = () => { $('notice').hidden = true; consentSaleId = null; };
+    if (innerWidth <= 760) $('notice').scrollIntoView({ behavior: 'smooth', block: 'start' });  // на телефоне QR сразу на экране
+    // Покупатель рядом без камеры или ушёл — ссылку на подтверждение можно отправить в WhatsApp/Telegram
+    const share = $('consentShare');
+    if (share) share.onclick = async () => {
+      const text = `${who}, подтвердите долг ${money(sale.total - sale.paid_now)} в Telegram:`;
+      if (navigator.share) { try { await navigator.share({ text, url: sale.consent_link }); return; } catch { return; } }
+      window.open('https://wa.me/?text=' + encodeURIComponent(text + ' ' + sale.consent_link), '_blank');
+    };
   }
 
   // ---------- оформление ----------
@@ -382,7 +397,15 @@ async function renderKassa() {
   };
   function setScanMode(m) {
     document.querySelectorAll('[data-scan]').forEach(b => { b.classList.toggle('on', b.dataset.scan === m); b.setAttribute('aria-selected', b.dataset.scan === m); });
-    if (m === 'barcode') return showScannerQr($('scanBody'), 'cart');
+    if (m === 'barcode') {
+      if (!isTouch) return showScannerQr($('scanBody'), 'cart');
+      // Телефон: камера открывается прямо над кассой, каждый скан сразу в заказ
+      $('scanBody').innerHTML = `<button type="button" class="lime big-btn" id="camOpen">📷 Открыть камеру</button>
+        <p class="sub">Повторный скан того же товара — ещё +1 шт. «Готово» вернёт в кассу.</p>`;
+      const run = () => openScanner({ mode: 'cart', onProduct: p => { state.source = 'barcode'; addItem(p); } });
+      $('camOpen').onclick = run; run();
+      return;
+    }
     $('scanBody').innerHTML = `<p>Сфотографируйте товар — ИИ найдёт похожие в вашем прайсе, а вы подтвердите нужный.</p>
       <button type="button" class="lime" id="aiShot">📷 Сфотографировать товар</button><div id="aiMatch"></div>`;
     $('aiShot').onclick = aiMatch;
@@ -408,6 +431,10 @@ async function renderKassa() {
       $('aiAgain').onclick = aiMatch;
     } catch (err) { box.innerHTML = `<p class="notice-line">${esc(err.message)}</p>`; }
   }
+  $('optsToggle').onclick = e => {
+    const open = document.querySelector('.pay-panel').classList.toggle('opts-open');
+    e.currentTarget.setAttribute('aria-expanded', open);
+  };
   $('btnPaid').onclick = () => checkout('paid');
   $('btnDebt').onclick = () => checkout('debt');
 
@@ -429,7 +456,16 @@ async function renderKassa() {
       if (p) { state.source = 'barcode'; addItem(p); toast('Скан: ' + p.name); }
       else toast('Штрихкод ' + msg.barcode + ' не найден в прайсе', true);
     }
-    if (['products_changed', 'customers_changed', 'sale_created', 'payment_created'].includes(msg.type)) {
+    // Вернулись на сайт из Telegram, WhatsApp или камеры — обновляем статус согласия
+    if (msg.type === 'refresh' && consentSaleId && $('consentStatus')) {
+      const recent = await api('/api/sales?limit=20').catch(() => []);
+      const s = recent.find(x => x.id === consentSaleId);
+      if (s && s.status !== 'pending') {
+        $('consentStatus').textContent = s.status === 'rejected' ? '❌ Покупатель отклонил — проверьте запись' : '✅ Покупатель подтвердил долг';
+        $('consentStatus').className = 'consent-status ' + (s.status === 'rejected' ? 'bad' : 'ok');
+      }
+    }
+    if (['products_changed', 'customers_changed', 'sale_created', 'payment_created', 'refresh'].includes(msg.type)) {
       await loadRefs(); loadFeed();
     }
   });

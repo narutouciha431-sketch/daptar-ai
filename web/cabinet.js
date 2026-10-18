@@ -14,7 +14,7 @@ async function renderCabinet() {
     </div>
     <div id="cab"></div>`;
   document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { cabinetTab = b.dataset.tab; history.replaceState(null, '', cabinetTab === 'charts' ? '#cabinet-charts' : '#cabinet'); renderCabinet(); });
-  listeners.add(msg => { if (['sale_created', 'payment_created', 'consent_changed'].includes(msg.type)) draw(); });
+  listeners.add(msg => { if (['sale_created', 'payment_created', 'consent_changed', 'refresh'].includes(msg.type)) draw(); });
   await draw();
 }
 
