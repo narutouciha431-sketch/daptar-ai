@@ -29,6 +29,7 @@ async function renderDebts() {
 
   const $ = id => document.getElementById(id) || document.createElement('div');
   let list = [], openId = null, lastFocus = null;
+  const receipts = {};  // чек после оплаты: покупатель → текст для WhatsApp
 
   async function load() {
     list = await api('/api/debts');
@@ -89,6 +90,8 @@ async function renderDebts() {
       </div>
       <div class="dp-actions">
         <button type="button" class="lime" id="pRemind">Напомнить</button>
+        ${d.phone ? '<button type="button" class="wa" id="pWa">💬 WhatsApp</button>' : ''}
+        ${receipts[id] ? '<button type="button" class="wa" id="pReceipt">🧾 Чек в WhatsApp</button>' : ''}
         <form class="inline-pay" id="pPay">
           <input name="amount" type="number" inputmode="numeric" min="1" max="${d.balance}" placeholder="Сумма…" aria-label="Сумма оплаты" required>
           <select name="method" aria-label="Способ"><option value="cash">Наличные</option><option value="kaspi">Kaspi</option></select>
@@ -99,13 +102,22 @@ async function renderDebts() {
       ${folder('ok', 'Подтверждённые долги', confirmed.map(s => tx(s)), true)}
       ${folder('back', 'Возвраты', c.payments.map(p => `<div class="tx flat"><span>${when(p.created_at)} · ${p.method === 'kaspi' ? 'Kaspi' : 'наличные'}</span><b class="plus">+${money(p.amount)}</b></div>`), false)}
       <div id="pQr"></div>`);
-    if (!focus) return;
     $('pRemind').onclick = () => remind(id);
+    // Напоминание сразу в WhatsApp покупателя: готовый текст на его языке с суммой и ссылкой Kaspi
+    if ($('pWa')) $('pWa').onclick = async () => {
+      const r = await api('/api/reminders/' + id).catch(err => { toast(err.message, true); return null; });
+      if (!r) return;
+      openWhatsApp(r.phone, r.plain);
+      api('/api/reminders/' + id, { method: 'POST', body: { text: r.plain, channel: 'whatsapp' } }).catch(() => {});
+    };
+    if ($('pReceipt')) $('pReceipt').onclick = () => { openWhatsApp(d.phone, receipts[id]); delete receipts[id]; openPanel(id); };
     $('pPay').onsubmit = async e => {
       e.preventDefault();
       try {
         const r = await api('/api/payments', { method: 'POST', body: { customer_id: id, amount: Number(e.target.elements.amount.value), method: e.target.elements.method.value } });
-        toast(`Принято ${money(r.accepted)}. Осталось: ${money(r.balance)}`); load();
+        toast(`Принято ${money(r.accepted)}. Осталось: ${money(r.balance)}`);
+        if (d.phone) receipts[id] = WA.receipt(d.language, d.name, money(r.accepted), r.balance);
+        load();
       } catch (err) { toast(err.message, true); }
     };
     $('mBody').querySelectorAll('[data-qr]').forEach(b => b.onclick = () => {

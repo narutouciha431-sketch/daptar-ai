@@ -582,3 +582,9 @@ body.no-scroll .tabs, body.no-scroll .pay-panel { display: none; }
   .pay-panel .debt-opts { display: none; }
   .pay-panel.opts-open .debt-opts { display: grid; }
 }
+
+/* ---------- WhatsApp ---------- */
+button.wa { background: #25d366; color: #fff; border: 0; font-weight: 700; }
+button.wa:hover:not(:disabled) { background: #1ebe5b; }
+.wa-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+@media (max-width: 760px) { .wa-row button { flex: 1 1 auto; } .dp-actions .wa { flex: 1 1 100%; } }

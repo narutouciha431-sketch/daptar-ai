@@ -35,7 +35,7 @@ async function renderSettings() {
       </div>
       <hr class="sep" aria-hidden="true">
       <div class="card report">
-        <div class="row-between"><h2>Отчёт за сегодня</h2><button class="ghost small" id="sendReport">Отправить мне в Telegram</button></div>
+        <div class="row-between"><h2>Отчёт за сегодня</h2><span class="wa-row"><button class="ghost small" id="sendReport">Отправить мне в Telegram</button><button type="button" class="wa small" id="shareReport">💬 В WhatsApp</button></span></div>
         <pre id="reportText" class="report-text">…</pre>
       </div>
       <hr class="sep" aria-hidden="true">
@@ -107,6 +107,7 @@ async function renderSettings() {
       toast('Сохранено'); load(); window.dispatchEvent(new Event('shop-changed'));
     } catch (err) { toast(err.message, true); }
   };
+  $('shareReport').onclick = () => openWhatsApp('', $('reportText').textContent);
   $('sendReport').onclick = async () => {
     try { await api('/api/report/send', { method: 'POST' }); toast('Отчёт отправлен в Telegram'); }
     catch (err) { toast(err.message, true); }

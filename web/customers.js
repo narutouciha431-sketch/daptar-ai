@@ -44,6 +44,7 @@ async function renderCustomers() {
       </tr>`).join('') : `<tr><td colspan="5" class="empty">${$('cq').value ? 'Никого не найдено' : 'Покупателей пока нет'}</td></tr>`;
   }
 
+  const receipts = {};  // чек после оплаты: покупатель → текст для WhatsApp
   async function showDetail(id) {
     selected = id;
     const c = await api('/api/customers/' + id);
@@ -62,6 +63,7 @@ async function renderCustomers() {
     ].sort((a, b) => b.at.localeCompare(a.at));
 
     $('detail').innerHTML = `
+      ${c.phone ? `<div class="wa-row"><button type="button" class="wa small" id="cWa">💬 WhatsApp</button>${receipts[id] ? '<button type="button" class="wa small" id="cReceipt">🧾 Чек в WhatsApp</button>' : ''}</div>` : ''}
       <div class="row-between"><h2>${esc(c.name)}</h2><span class="pill big ${c.balance > 0 ? 'warn' : 'ok'}">${c.balance > 0 ? 'Долг: ' + money(c.balance) : 'Долгов нет'}</span></div>
       <p class="sub">${esc([c.phone, c.address, c.language === 'kk' ? 'қазақша' : 'русский'].filter(Boolean).join(' · '))}</p>
       ${c.balance > 0 ? `
@@ -84,12 +86,15 @@ async function renderCustomers() {
         <button type="button" class="danger" id="delCust">Удалить покупателя</button>
       </details>`;
 
+    if ($('cWa')) $('cWa').onclick = () => openWhatsApp(c.phone, '');
+    if ($('cReceipt')) $('cReceipt').onclick = () => { openWhatsApp(c.phone, receipts[id]); delete receipts[id]; showDetail(id); };
     const pf = $('payForm');
     if (pf) pf.onsubmit = async e => {
       e.preventDefault();
       try {
         const r = await api('/api/payments', { method: 'POST', body: { customer_id: id, amount: Number(pf.elements.amount.value), method: pf.elements.method.value } });
         toast(`Принято ${money(r.accepted)}. Осталось: ${money(r.balance)}`);
+        if (c.phone) receipts[id] = WA.receipt(c.language, c.name, money(r.accepted), r.balance);
         await load(); await showDetail(id);
       } catch (err) { toast(err.message, true); }
     };

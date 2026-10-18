@@ -50,6 +50,25 @@ async function showScannerQr(card, mode) {
   card.hidden = false;
 }
 
+// ---------- WhatsApp: бесплатно, через ссылку wa.me — отправляет сам продавец одним касанием ----------
+let shopInfo = null;
+function waLink(phone, text) {
+  let d = String(phone || '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '8') d = '7' + d.slice(1);
+  if (d.length === 10 && d[0] === '7') d = '7' + d;
+  return 'https://wa.me/' + (d.length === 11 ? d : '') + '?text=' + encodeURIComponent(text);
+}
+function openWhatsApp(phone, text) { window.open(waLink(phone, text), '_blank', 'noopener'); }
+// Тексты на языке покупателя
+const WA = {
+  consent: (lang, name, sum, link) => lang === 'kk'
+    ? `Сәлеметсіз бе, ${name}! «${shopInfo?.name || 'Дүкен'}» дүкеніндегі қарызыңыз: ${sum}. Растау үшін сілтемені ашып, «Растаймын» басыңыз: ${link}`
+    : `Здравствуйте, ${name}! Ваш долг в магазине «${shopInfo?.name || 'Магазин'}»: ${sum}. Чтобы подтвердить, откройте ссылку и нажмите «Растаймын»: ${link}`,
+  receipt: (lang, name, paid, left) => lang === 'kk'
+    ? `Рахмет, ${name}! «${shopInfo?.name || 'Дүкен'}» дүкені ${paid} төлемді қабылдады. ${left > 0 ? 'Қалған қарыз: ' + money(left) + '.' : 'Қарыз толық жабылды ✅'}`
+    : `Спасибо, ${name}! Магазин «${shopInfo?.name || 'Магазин'}» принял оплату ${paid}. ${left > 0 ? 'Остаток долга: ' + money(left) + '.' : 'Долг полностью закрыт ✅'}`,
+};
+
 // ---------- фото: камера телефона или файл → уменьшенный JPEG (data URL) ----------
 function pickPhoto() {
   return new Promise(resolve => {
@@ -317,7 +336,7 @@ async function renderProducts() {
 }
 
 // ---------- старт ----------
-api('/api/shop').then(s => (document.getElementById('shopName').textContent = '«' + s.name + '», ' + s.district)).catch(() => {});
+api('/api/shop').then(s => { shopInfo = s; document.getElementById('shopName').textContent = '«' + s.name + '», ' + s.district; }).catch(() => {});
 window.addEventListener('shop-changed', () => api('/api/shop').then(s => (document.getElementById('shopName').textContent = '«' + s.name + '», ' + s.district)));
 
 // Пользователь и выход

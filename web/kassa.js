@@ -269,13 +269,17 @@ async function renderKassa() {
           <p>Покупатель сканирует QR камерой телефона → открывается Telegram → он нажимает <b>«Растаймын»</b>.</p>
           ${sale.consent_sent ? '<p class="sub">Покупатель уже подключён к боту — запрос отправлен ему в Telegram.</p>' : ''}
           <p class="consent-status" id="consentStatus">⏳ Ждём подтверждения…</p>
-          ${sale.consent_link ? '<button type="button" class="ghost" id="consentShare">📤 Отправить ссылку покупателю</button>' : ''}
+          ${sale.consent_link ? `<div class="wa-row"><button type="button" class="wa" id="consentWa">💬 Отправить в WhatsApp</button>
+            <button type="button" class="ghost" id="consentShare">📤 Другое приложение</button></div>` : ''}
           <button type="button" class="ghost small" id="consentSkip">Пропустить</button>
         </div>
       </div>`);
     $('consentSkip').onclick = () => { $('notice').hidden = true; consentSaleId = null; };
     if (innerWidth <= 760) $('notice').scrollIntoView({ behavior: 'smooth', block: 'start' });  // на телефоне QR сразу на экране
     // Покупатель рядом без камеры или ушёл — ссылку на подтверждение можно отправить в WhatsApp/Telegram
+    const buyer = customers.find(x => x.id === sale.customer_id) || {};
+    if ($('consentWa')) $('consentWa').onclick = () =>
+      openWhatsApp(buyer.phone, WA.consent(buyer.language, who, money(sale.total - sale.paid_now), sale.consent_link));
     const share = $('consentShare');
     if (share) share.onclick = async () => {
       const text = `${who}, подтвердите долг ${money(sale.total - sale.paid_now)} в Telegram:`;
