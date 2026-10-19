@@ -83,7 +83,8 @@ def resolve(token: str | None) -> Me | None:
     with session() as c:
         row = c.execute(
             "SELECT s.user_id, sh.id AS shop_id FROM auth_session s JOIN shop sh ON sh.user_id = s.user_id "
-            "WHERE s.token = ? AND s.expires_at > datetime('now', 'localtime')", (token,)).fetchone()
+            "JOIN user u ON u.id = s.user_id "
+            "WHERE s.token = ? AND s.expires_at > datetime('now', 'localtime') AND u.is_blocked = 0", (token,)).fetchone()
     return Me(row["user_id"], row["shop_id"]) if row else None
 
 
@@ -93,6 +94,26 @@ def current(request: Request) -> Me:
     if not me:
         raise HTTPException(401, "Нужно войти в аккаунт")
     return me
+
+
+def resolve_admin(token: str | None) -> int | None:
+    """id администратора, если по этой сессии вошёл именно он."""
+    from .config import ADMIN_EMAIL
+    if not token or not ADMIN_EMAIL:
+        return None
+    with session() as c:
+        row = c.execute("SELECT u.id FROM auth_session s JOIN user u ON u.id = s.user_id "
+                        "WHERE s.token = ? AND s.expires_at > datetime('now', 'localtime') AND u.email = ?",
+                        (token, ADMIN_EMAIL)).fetchone()
+    return row["id"] if row else None
+
+
+def admin(request: Request) -> int:
+    """Зависимость FastAPI для /api/admin/*: только администратор, остальным — 403."""
+    uid = resolve_admin(request.cookies.get(COOKIE))
+    if not uid:
+        raise HTTPException(403, "Только для администратора")
+    return uid
 
 
 def ws_user(ws: WebSocket) -> Me | None:

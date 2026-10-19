@@ -25,11 +25,12 @@ from qrcode.image.svg import SvgPathImage
 
 from . import ai, bot
 from .analytics import analytics, clear_demo, reset_demo, seed_demo
+from .auth import admin as admin_only, resolve_admin
 from .auth import (COOKIE, Me, check_password, clean_email, clean_phone, client_ip, current, drop_session, guard_login,
                    login_failed, new_login_token, new_session, resolve, set_cookie, use_login_token, ws_user)
-from .config import BOT_USERNAME, SERVICE_KASPI, SERVICE_KASPI_NAME, WEBHOOK_SECRET
+from .config import ADMIN_EMAIL, BOT_USERNAME, SERVICE_KASPI, SERVICE_KASPI_NAME, WEBHOOK_SECRET
 from .db import (BALANCE_SQL, DEMO_EMAIL, create_shop, get_shop, hash_password, init_db, open_debts, session,
-                 settle_fifo, verify_password)
+                 settle_fifo, verify_password, wipe_user)
 from .live import hub
 from .parser import match_customer, parse
 from .reports import daily_report, report_text
@@ -37,6 +38,7 @@ from .texts import plain
 
 # Windows пишет ConnectionResetError, когда браузер закрывает вкладку, — это не ошибка сайта, прячем шум
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+log = logging.getLogger("daptar")
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -124,6 +126,11 @@ class ProfileIn(BaseModel):
 
 
 def login_response(request: Request, user_id: int) -> JSONResponse:
+    try:  # время входа — для админа; если база занята, вход всё равно проходит
+        with session() as c:
+            c.execute("UPDATE user SET last_login = datetime('now', 'localtime') WHERE id = ?", (user_id,))
+    except Exception:
+        log.warning("не записалось время входа user=%s", user_id)
     resp = JSONResponse({"ok": True})
     set_cookie(resp, request, new_session(user_id))
     return resp
@@ -151,10 +158,12 @@ def login(r: LoginIn, request: Request):
     key = f"{email}|{client_ip(request)}"
     guard_login(key)
     with session() as c:
-        u = c.execute("SELECT id, pw_hash FROM user WHERE email = ?", (email,)).fetchone()
+        u = c.execute("SELECT id, pw_hash, is_blocked FROM user WHERE email = ?", (email,)).fetchone()
     if not u or not verify_password(r.password, u["pw_hash"]):
         login_failed(key)
         raise HTTPException(401, "Неверный email или пароль")
+    if u["is_blocked"]:
+        raise HTTPException(403, "Аккаунт заблокирован администратором")
     return login_response(request, u["id"])
 
 
@@ -189,15 +198,7 @@ async def delete_account(d: DeleteAccountIn, request: Request, m: Me = Depends(c
             raise HTTPException(403, "Демо-аккаунт общий — его удалить нельзя")
         if not verify_password(d.password, u["pw_hash"]):
             raise HTTPException(400, "Неверный пароль")
-        sid = m.shop_id
-        c.execute("DELETE FROM sale_item WHERE sale_id IN (SELECT id FROM sale WHERE shop_id = ?)", (sid,))
-        c.execute("DELETE FROM product_photo WHERE product_id IN (SELECT id FROM product WHERE shop_id = ?)", (sid,))
-        for table in ("reminder", "payment", "sale", "customer", "product"):
-            c.execute(f"DELETE FROM {table} WHERE shop_id = ?", (sid,))
-        c.execute("DELETE FROM shop WHERE id = ?", (sid,))
-        c.execute("DELETE FROM auth_session WHERE user_id = ?", (m.user_id,))
-        c.execute("DELETE FROM login_token WHERE user_id = ?", (m.user_id,))
-        c.execute("DELETE FROM user WHERE id = ?", (m.user_id,))
+        wipe_user(c, m.user_id)
     resp = JSONResponse({"deleted": True})
     resp.delete_cookie(COOKIE, path="/")
     return resp
@@ -206,7 +207,8 @@ async def delete_account(d: DeleteAccountIn, request: Request, m: Me = Depends(c
 @app.get("/api/auth/state")
 def auth_state(request: Request):
     """Вошёл ли пользователь — без ошибки 401 в консоли на открытых страницах."""
-    return {"logged": logged_in(request)}
+    is_admin = resolve_admin(request.cookies.get(COOKIE)) is not None
+    return {"logged": logged_in(request) or is_admin, "admin": is_admin}
 
 
 @app.get("/api/auth/me")
@@ -952,6 +954,153 @@ def scan_login(token: str, request: Request, mode: str = "cart"):
     return resp
 
 
+# ---------- администратор ----------
+# Долг магазина: долги (без отклонённых) минус все возвраты
+SHOP_DEBT_SQL = ("(SELECT COALESCE(SUM(total - paid_now), 0) FROM sale WHERE shop_id = sh.id AND kind = 'debt' AND status != 'rejected') "
+                 "- (SELECT COALESCE(SUM(amount), 0) FROM payment WHERE shop_id = sh.id)")
+ACCOUNT_SQL = f"""
+    SELECT u.id, u.email, u.full_name, u.phone, u.created_at, u.last_login, u.is_blocked,
+           sh.id AS shop_id, sh.name AS shop_name, sh.district, sh.service_rate, sh.owner_chat IS NOT NULL AS tg_linked,
+           (SELECT COUNT(*) FROM product WHERE shop_id = sh.id) AS products,
+           (SELECT COUNT(*) FROM customer WHERE shop_id = sh.id) AS customers,
+           (SELECT COUNT(*) FROM sale WHERE shop_id = sh.id) AS sales,
+           (SELECT COALESCE(SUM(total), 0) FROM sale WHERE shop_id = sh.id) AS sales_sum,
+           (SELECT MAX(created_at) FROM sale WHERE shop_id = sh.id) AS last_sale,
+           {SHOP_DEBT_SQL} AS debt
+    FROM user u LEFT JOIN shop sh ON sh.user_id = u.id"""
+
+
+def _account(row) -> dict:
+    a = dict(row)
+    a["is_demo"] = a["email"] == DEMO_EMAIL
+    return a
+
+
+@app.get("/api/admin/overview")
+def admin_overview(_: int = Depends(admin_only)):
+    today = date.today().isoformat()
+    with session() as c:
+        one = lambda sql, *a: c.execute(sql, a).fetchone()[0] or 0
+        regs = [dict(r) for r in c.execute(
+            "SELECT date(created_at) AS day, COUNT(*) AS n FROM user WHERE email != ? AND created_at >= date('now', '-30 days') "
+            "GROUP BY day ORDER BY day", (ADMIN_EMAIL,))]
+        month = today[:7]
+        fees = c.execute(
+            "SELECT sh.name, sh.service_rate, "
+            "(SELECT COALESCE(SUM(paid_now), 0) FROM sale WHERE shop_id = sh.id AND strftime('%Y-%m', created_at) = ?) + "
+            "(SELECT COALESCE(SUM(amount), 0) FROM payment WHERE shop_id = sh.id AND strftime('%Y-%m', created_at) = ?) AS base "
+            "FROM shop sh", (month, month)).fetchall()
+        return {
+            "accounts": one("SELECT COUNT(*) FROM user WHERE email != ?", ADMIN_EMAIL),
+            "blocked": one("SELECT COUNT(*) FROM user WHERE is_blocked = 1"),
+            "new_7d": one("SELECT COUNT(*) FROM user WHERE email != ? AND created_at >= date('now', '-7 days')", ADMIN_EMAIL),
+            "active_today": one("SELECT COUNT(DISTINCT shop_id) FROM sale WHERE date(created_at) = ?", today),
+            "logins_today": one("SELECT COUNT(*) FROM user WHERE date(last_login) = ?", today),
+            "sales_count": one("SELECT COUNT(*) FROM sale"),
+            "sales_sum": one("SELECT SUM(total) FROM sale"),
+            "sales_today": one("SELECT SUM(total) FROM sale WHERE date(created_at) = ?", today),
+            "debt_total": one("SELECT SUM(total - paid_now) FROM sale WHERE kind = 'debt' AND status != 'rejected'") - one("SELECT SUM(amount) FROM payment"),
+            "customers": one("SELECT COUNT(*) FROM customer"),
+            "products": one("SELECT COUNT(*) FROM product"),
+            "tg_linked": one("SELECT COUNT(*) FROM shop WHERE owner_chat IS NOT NULL"),
+            "service_month": month,
+            "service_fee": round(sum(r["base"] * (r["service_rate"] or 0.01) for r in fees)),
+            "registrations": regs,
+        }
+
+
+@app.get("/api/admin/accounts")
+def admin_accounts(_: int = Depends(admin_only)):
+    with session() as c:
+        rows = c.execute(ACCOUNT_SQL + " WHERE u.email != ? ORDER BY u.created_at DESC", (ADMIN_EMAIL,)).fetchall()
+    return [_account(r) for r in rows]
+
+
+def _target(c, uid: int):
+    row = c.execute(ACCOUNT_SQL + " WHERE u.id = ? AND u.email != ?", (uid, ADMIN_EMAIL)).fetchone()
+    if not row:
+        raise HTTPException(404, "Аккаунт не найден")
+    return _account(row)
+
+
+@app.get("/api/admin/accounts/{uid}")
+def admin_account(uid: int, _: int = Depends(admin_only)):
+    """Карточка аккаунта и его история: продажи, долги, оплаты, напоминания."""
+    with session() as c:
+        a = _target(c, uid)
+        sid = a["shop_id"] or -1
+        a["sales_list"] = [dict(r) for r in c.execute(
+            "SELECT s.id, s.kind, s.total, s.paid_now, s.status, s.source, s.created_at, cu.name AS customer, "
+            "(SELECT group_concat(name || ' ×' || CASE WHEN qty = CAST(qty AS INTEGER) THEN CAST(qty AS INTEGER) ELSE qty END, ', ') FROM sale_item WHERE sale_id = s.id) AS items "
+            "FROM sale s LEFT JOIN customer cu ON cu.id = s.customer_id WHERE s.shop_id = ? ORDER BY s.id DESC LIMIT 30", (sid,))]
+        a["payments_list"] = [dict(r) for r in c.execute(
+            "SELECT p.amount, p.method, p.created_at, cu.name AS customer FROM payment p LEFT JOIN customer cu ON cu.id = p.customer_id "
+            "WHERE p.shop_id = ? ORDER BY p.id DESC LIMIT 20", (sid,))]
+        a["reminders_list"] = [dict(r) for r in c.execute(
+            "SELECT substr(r.text, 1, 80) AS text, r.status, COALESCE(r.sent_at, r.created_at) AS sent_at, cu.name AS customer FROM reminder r LEFT JOIN customer cu ON cu.id = r.customer_id "
+            "WHERE r.shop_id = ? ORDER BY r.id DESC LIMIT 20", (sid,))]
+        a["sessions"] = c.execute("SELECT COUNT(*) FROM auth_session WHERE user_id = ? AND expires_at > datetime('now', 'localtime')",
+                                  (uid,)).fetchone()[0]
+    return a
+
+
+class AdminEditIn(BaseModel):
+    full_name: str = Field(min_length=3, max_length=100)
+    phone: str = Field("", max_length=25)
+    shop_name: str = Field("", max_length=80)
+    service_rate: float = Field(0.01, ge=0.005, le=0.02)
+
+
+@app.put("/api/admin/accounts/{uid}")
+def admin_edit(uid: int, d: AdminEditIn, _: int = Depends(admin_only)):
+    phone = clean_phone(d.phone) if d.phone.strip() else ""
+    with session() as c:
+        a = _target(c, uid)
+        c.execute("UPDATE user SET full_name = ?, phone = ? WHERE id = ?", (d.full_name.strip(), phone, uid))
+        if a["shop_id"]:
+            c.execute("UPDATE shop SET name = COALESCE(NULLIF(?, ''), name), service_rate = ? WHERE id = ?",
+                      (d.shop_name.strip(), d.service_rate, a["shop_id"]))
+    return {"ok": True}
+
+
+@app.post("/api/admin/accounts/{uid}/password")
+def admin_reset_password(uid: int, _: int = Depends(admin_only)):
+    """Временный пароль: показывается администратору один раз, все входы пользователя сбрасываются."""
+    temp = "Dp" + secrets.token_hex(3) + str(secrets.randbelow(90) + 10)
+    with session() as c:
+        if _target(c, uid)["is_demo"]:
+            raise HTTPException(400, "Пароль демо-аккаунта не меняется — он указан в README")
+        c.execute("UPDATE user SET pw_hash = ? WHERE id = ?", (hash_password(temp), uid))
+        c.execute("DELETE FROM auth_session WHERE user_id = ?", (uid,))
+    return {"password": temp}
+
+
+class BlockIn(BaseModel):
+    blocked: bool
+
+
+@app.post("/api/admin/accounts/{uid}/block")
+def admin_block(uid: int, b: BlockIn, _: int = Depends(admin_only)):
+    with session() as c:
+        a = _target(c, uid)
+        if a["is_demo"] and b.blocked:
+            raise HTTPException(400, "Демо-аккаунт заблокировать нельзя")
+        c.execute("UPDATE user SET is_blocked = ? WHERE id = ?", (int(b.blocked), uid))
+        if b.blocked:
+            c.execute("DELETE FROM auth_session WHERE user_id = ?", (uid,))
+    return {"blocked": b.blocked}
+
+
+@app.delete("/api/admin/accounts/{uid}")
+def admin_delete(uid: int, _: int = Depends(admin_only)):
+    with session() as c:
+        a = _target(c, uid)
+        if a["is_demo"]:
+            raise HTTPException(400, "Демо-аккаунт удалить нельзя")
+        wipe_user(c, uid)
+    return {"deleted": uid}
+
+
 # ---------- страницы ----------
 def logged_in(request: Request) -> bool:
     return resolve(request.cookies.get(COOKIE)) is not None
@@ -972,8 +1121,17 @@ def register_page():
     return FileResponse(WEB_DIR / "auth.html")
 
 
+@app.get("/admin")
+def admin_page(request: Request):
+    if not resolve_admin(request.cookies.get(COOKIE)):
+        return RedirectResponse("/login", status_code=303)
+    return FileResponse(WEB_DIR / "admin.html")
+
+
 @app.get("/app")
 def app_page(request: Request):
+    if resolve_admin(request.cookies.get(COOKIE)):  # администратор работает на своей странице
+        return RedirectResponse("/admin", status_code=303)
     if not logged_in(request):
         return RedirectResponse("/login", status_code=303)
     return FileResponse(WEB_DIR / "index.html")

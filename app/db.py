@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS user (
     full_name   TEXT NOT NULL,
     phone       TEXT NOT NULL,
     pw_hash     TEXT NOT NULL,                   -- pbkdf2$итерации$соль$хеш, сам пароль не храним
+    is_blocked  INTEGER NOT NULL DEFAULT 0,      -- заблокирован администратором
+    last_login  TEXT,
     created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -407,6 +409,11 @@ def migrate(c):
     # Telegram: к какому @username привязан чат владельца и покупателя
     if "shop" in tables and "owner_username" not in _columns(c, "shop"):
         c.execute("ALTER TABLE shop ADD COLUMN owner_username TEXT")
+    # Администратор может заблокировать аккаунт; видно время последнего входа
+    if "user" in tables and "is_blocked" not in _columns(c, "user"):
+        c.execute("ALTER TABLE user ADD COLUMN is_blocked INTEGER NOT NULL DEFAULT 0")
+    if "user" in tables and "last_login" not in _columns(c, "user"):
+        c.execute("ALTER TABLE user ADD COLUMN last_login TEXT")
     # Оплата сервиса Дәптер: реквизиты Kaspi и ставка вписываются в «Настройках»
     for col, typ in (("service_kaspi", "TEXT NOT NULL DEFAULT ''"), ("service_name", "TEXT NOT NULL DEFAULT ''"),
                      ("service_rate", "REAL NOT NULL DEFAULT 0.01")):
@@ -438,12 +445,41 @@ def seed_demo_account(c):
                   [(sid, *cu) for cu in DEMO_CUSTOMERS])
 
 
+def ensure_admin(c):
+    """Единственный администратор из ADMIN_EMAIL / ADMIN_PASSWORD. Магазина у него нет."""
+    from .config import ADMIN_EMAIL, ADMIN_PASSWORD
+    if not ADMIN_EMAIL or not ADMIN_PASSWORD:
+        return
+    row = c.execute("SELECT id, pw_hash FROM user WHERE email = ?", (ADMIN_EMAIL,)).fetchone()
+    if not row:
+        c.execute("INSERT INTO user (email, full_name, phone, pw_hash) VALUES (?, 'Администратор', '', ?)",
+                  (ADMIN_EMAIL, hash_password(ADMIN_PASSWORD)))
+    elif not verify_password(ADMIN_PASSWORD, row["pw_hash"]):  # пароль сменили в настройках сервера
+        c.execute("UPDATE user SET pw_hash = ? WHERE id = ?", (hash_password(ADMIN_PASSWORD), row["id"]))
+
+
+def wipe_user(c, user_id: int) -> None:
+    """Удалить аккаунт и все данные его магазина."""
+    shop = c.execute("SELECT id FROM shop WHERE user_id = ?", (user_id,)).fetchone()
+    if shop:
+        sid = shop["id"]
+        c.execute("DELETE FROM sale_item WHERE sale_id IN (SELECT id FROM sale WHERE shop_id = ?)", (sid,))
+        c.execute("DELETE FROM product_photo WHERE product_id IN (SELECT id FROM product WHERE shop_id = ?)", (sid,))
+        for table in ("reminder", "payment", "sale", "customer", "product"):
+            c.execute(f"DELETE FROM {table} WHERE shop_id = ?", (sid,))
+        c.execute("DELETE FROM shop WHERE id = ?", (sid,))
+    c.execute("DELETE FROM auth_session WHERE user_id = ?", (user_id,))
+    c.execute("DELETE FROM login_token WHERE user_id = ?", (user_id,))
+    c.execute("DELETE FROM user WHERE id = ?", (user_id,))
+
+
 def init_db() -> None:
     with session() as c:
         migrate(c)
         c.executescript(SCHEMA)
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS sale_client_ref ON sale (shop_id, client_ref) WHERE client_ref IS NOT NULL")
         seed_demo_account(c)
+        ensure_admin(c)
         # Фото из старой папки data/photos переносим в базу (один раз)
         folder = DB_PATH.parent / "photos"
         if not TURSO_URL and folder.is_dir():

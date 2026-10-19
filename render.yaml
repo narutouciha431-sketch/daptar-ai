@@ -25,3 +25,8 @@ services:
         value: daptar_ai_bot
       - key: GEMINI_API_KEY
         sync: false
+      # Единственный администратор (вписать вручную в панели Render, значения — в data/admin.txt на ноутбуке)
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false

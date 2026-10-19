@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Дәптер AI — администратор</title>
+<meta name="theme-color" content="#0b1736">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  /* Пульт администратора: тёмная панель сверху, светлое рабочее поле, всё про аккаунты и статистику */
+  :root { --ink: #0b1736; --ink-2: #14244f; --bg: #eef2f8; --card: #fff; --fg: #1b2333; --muted: #5d6880; --line: #dbe2ee;
+          --brand: #1f4fb4; --gold: #e5b83a; --ok: #1e8e4e; --bad: #c8382f; --warn: #9a6400;
+          --f: "Onest", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 var(--f); }
+  button, input, select { font: inherit; }
+  button { cursor: pointer; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--fg); padding: 9px 14px; min-height: 42px; font-weight: 600; }
+  button:hover { border-color: var(--brand); color: var(--brand); }
+  button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  button.danger { color: var(--bad); border-color: #f0b8b3; }
+  button.danger:hover { background: #fdecea; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--gold); outline-offset: 1px; }
+  input, select { border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; min-height: 42px; background: #fff; width: 100%; }
+  label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+
+  header { background: var(--ink); color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; position: sticky; top: 0; z-index: 5; }
+  header .logo { font-weight: 800; font-size: 20px; }
+  header .logo span { color: var(--gold); font-weight: 600; margin-left: 6px; font-size: 14px; padding: 3px 10px; border: 1px solid rgba(229,184,58,.5); border-radius: 999px; }
+  nav { display: flex; gap: 6px; flex: 1; }
+  nav a { color: #b9c6e6; text-decoration: none; padding: 8px 14px; border-radius: 10px; font-weight: 600; }
+  nav a.on { background: rgba(255,255,255,.12); color: #fff; }
+  header button { background: transparent; color: #fff; border-color: rgba(255,255,255,.3); }
+
+  main { max-width: 1240px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -.02em; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0; }
+
+  /* --- обзор --- */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin: 18px 0; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+  .kpi span { color: var(--muted); font-size: 13px; }
+  .kpi b { display: block; font-size: 28px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .kpi.accent { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .kpi.accent span { color: #b9c6e6; } .kpi.accent b { color: var(--gold); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 140px; margin-top: 12px; }
+  .bars div { flex: 1; max-width: 36px; background: var(--brand); border-radius: 4px 4px 0 0; min-height: 3px; position: relative; }
+  .bars div:hover::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; font-size: 12px; padding: 3px 7px; border-radius: 6px; white-space: nowrap; }
+
+  /* --- аккаунты --- */
+  .toolbar { display: flex; gap: 10px; margin: 16px 0; flex-wrap: wrap; }
+  .toolbar input { max-width: 360px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; font-size: 14px; }
+  th { text-align: left; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: #f6f8fc; padding: 10px 12px; }
+  td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+  tr.row { cursor: pointer; } tr.row:hover td { background: #f6f9ff; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; border: 1px solid; margin: 2px 4px 0 0; }
+  .tag.ok { color: var(--ok); background: #e3f5ea; border-color: #9fd8b6; }
+  .tag.bad { color: var(--bad); background: #fde6e4; border-color: #f2a39b; }
+  .tag.demo { color: var(--warn); background: #fff3cf; border-color: #f0cf6a; }
+  .tag.muted { color: var(--muted); background: #eef1f6; border-color: #d5dbe6; }
+
+  /* --- карточка аккаунта (боковая панель) --- */
+  .drawer { position: fixed; inset: 0; background: rgba(11,23,54,.45); display: flex; justify-content: flex-end; z-index: 20; }
+  .drawer[hidden] { display: none; }
+  .panel { background: var(--bg); width: min(720px, 100%); height: 100%; overflow: auto; overscroll-behavior: contain; padding: 22px; display: grid; gap: 14px; align-content: start; }
+  .panel h2 { margin: 0; font-size: 24px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .stats div { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+  .stats span { font-size: 12px; color: var(--muted); } .stats b { display: block; font-size: 18px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .secret { background: var(--ink); color: #fff; border-radius: 12px; padding: 12px 14px; font-family: var(--mono); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .secret b { color: var(--gold); font-size: 20px; letter-spacing: .04em; }
+  .hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .hist li { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 14px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; }
+  .hist small { color: var(--muted); }
+  .htabs { display: flex; gap: 6px; }
+  .htabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 12px; z-index: 40; }
+  .toast.err { background: var(--bad); }
+  .empty { color: var(--muted); text-align: center; padding: 24px; }
+
+  @media (max-width: 760px) {
+    header { padding: 10px 14px; } main { padding: 14px; }
+    table, tbody { display: block; } thead { display: none; }
+    tr.row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; border: 1px solid var(--line); border-radius: 14px; background: #fff; margin-bottom: 10px; padding: 10px 12px; }
+    tr.row td { border: 0; padding: 0; } tr.row td.hide-m { display: none; }
+    .grid2, .stats { grid-template-columns: 1fr 1fr; }
+    .panel { padding: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Дәптер AI<span>администратор</span></div>
+  <nav aria-label="Разделы">
+    <a href="#overview" data-tab="overview">Обзор</a>
+    <a href="#accounts" data-tab="accounts">Аккаунты</a>
+  </nav>
+  <button type="button" id="logout">Выйти</button>
+</header>
+<main id="view"><p class="empty">Загрузка…</p></main>
+
+<div class="drawer" id="drawer" hidden><div class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="pTitle" tabindex="-1"></div></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const money = n => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0)) + ' ₸';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const STATUS = { paid: 'оплачено', pending: 'ждёт подтверждения', confirmed: 'подтверждён', rejected: 'отклонён', closed: 'закрыт' };
+const when = s => s ? String(s).slice(0, 16).replace('T', ' ') : '—';
+function toast(t, err) { const el = Object.assign(document.createElement('div'), { className: 'toast' + (err ? ' err' : ''), textContent: t }); document.body.append(el); setTimeout(() => el.remove(), 3200); }
+async function api(path, opt = {}) {
+  const r = await fetch(path, { method: opt.method || 'GET', headers: { 'Content-Type': 'application/json' }, body: opt.body ? JSON.stringify(opt.body) : undefined });
+  if (r.status === 401 || r.status === 403) { location.href = '/login'; throw new Error('Нужно войти'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : 'Ошибка сервера');
+  return d;
+}
+
+// ---------- обзор ----------
+async function overview() {
+  const o = await api('/api/admin/overview');
+  const max = Math.max(1, ...o.registrations.map(r => r.n));
+  $('view').innerHTML = `
+    <h1>Обзор</h1><p class="sub">Все магазины на сервере. Обновляется при открытии.</p>
+    <div class="kpis">
+      <div class="kpi accent"><span>Аккаунтов</span><b>${o.accounts}</b></div>
+      <div class="kpi"><span>Новых за 7 дней</span><b>${o.new_7d}</b></div>
+      <div class="kpi"><span>Входили сегодня</span><b>${o.logins_today}</b></div>
+      <div class="kpi"><span>Магазинов с продажами сегодня</span><b>${o.active_today}</b></div>
+      <div class="kpi"><span>Продаж всего</span><b>${o.sales_count}</b></div>
+      <div class="kpi"><span>Сумма продаж</span><b>${money(o.sales_sum)}</b></div>
+      <div class="kpi"><span>Продано сегодня</span><b>${money(o.sales_today)}</b></div>
+      <div class="kpi"><span>Долгов на руках</span><b>${money(o.debt_total)}</b></div>
+      <div class="kpi"><span>Покупателей / товаров</span><b>${o.customers} / ${o.products}</b></div>
+      <div class="kpi"><span>Telegram подключён</span><b>${o.tg_linked}</b></div>
+      <div class="kpi"><span>Заблокировано</span><b>${o.blocked}</b></div>
+      <div class="kpi accent"><span>Оплата сервиса за ${esc(o.service_month)}</span><b>${money(o.service_fee)}</b></div>
+    </div>
+    <div class="card"><b>Регистрации за 30 дней</b>
+      ${o.registrations.length ? `<div class="bars">${o.registrations.map(r => `<div style="height:${Math.round(r.n / max * 100)}%" data-tip="${esc(r.day)}: ${r.n}"></div>`).join('')}</div>`
+        : '<p class="empty">Пока регистраций нет</p>'}
+    </div>`;
+}
+
+// ---------- аккаунты ----------
+let accounts = [];
+async function accountsPage() {
+  accounts = await api('/api/admin/accounts');
+  $('view').innerHTML = `
+    <h1>Аккаунты</h1><p class="sub">Нажмите на строку — откроется карточка: изменить, сбросить пароль, заблокировать, удалить, история.</p>
+    <div class="toolbar"><input id="q" type="search" placeholder="Поиск: имя, email, телефон, магазин…" aria-label="Поиск аккаунта"></div>
+    <table><thead><tr><th>Владелец</th><th>Магазин</th><th class="num">Продаж</th><th class="num">Долги</th><th>Последний вход</th><th>Статус</th></tr></thead>
+      <tbody id="rows"></tbody></table>`;
+  const draw = () => {
+    const q = $('q').value.trim().toLowerCase();
+    const list = accounts.filter(a => !q || [a.full_name, a.email, a.phone, a.shop_name].join(' ').toLowerCase().includes(q));
+    $('rows').innerHTML = list.map(a => `
+      <tr class="row" data-id="${a.id}" tabindex="0">
+        <td><b>${esc(a.full_name)}</b><br><small class="sub">${esc(a.email)} · ${esc(a.phone || 'нет телефона')}</small></td>
+        <td>${esc(a.shop_name || '—')}<br><small class="sub">${esc(a.district || '')}</small></td>
+        <td class="num">${a.sales}<br><small class="sub">${money(a.sales_sum)}</small></td>
+        <td class="num">${money(a.debt)}</td>
+        <td class="hide-m">${when(a.last_login)}</td>
+        <td>${a.is_blocked ? '<span class="tag bad">заблокирован</span>' : '<span class="tag ok">активен</span>'}${a.is_demo ? '<span class="tag demo">демо</span>' : ''}${a.tg_linked ? '<span class="tag muted">Telegram</span>' : ''}</td>
+      </tr>`).join('') || '<tr><td colspan="6" class="empty">Никого не найдено</td></tr>';
+  };
+  $('q').oninput = draw; draw();
+  $('rows').onclick = e => { const tr = e.target.closest('tr[data-id]'); if (tr) openAccount(+tr.dataset.id); };
+  $('rows').onkeydown = e => { const tr = e.target.closest('tr[data-id]'); if (tr && e.key === 'Enter') openAccount(+tr.dataset.id); };
+}
+
+// ---------- карточка аккаунта ----------
+let lastFocus = null;
+function closeDrawer() { $('drawer').hidden = true; if (lastFocus) lastFocus.focus(); }
+$('drawer').onclick = e => { if (e.target.id === 'drawer') closeDrawer(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('drawer').hidden) closeDrawer(); });
+
+async function openAccount(id, keepTab) {
+  const a = await api('/api/admin/accounts/' + id);
+  if ($('drawer').hidden) lastFocus = document.activeElement;
+  const hist = {
+    sales: a.sales_list.map(s => `<li><span><b>${s.kind === 'debt' ? 'В долг' : 'Продажа'}</b> · ${esc(s.customer || 'без покупателя')}<br><small>${esc(s.items || '')}</small></span>
+      <span class="num">${money(s.total)}<br><small>${when(s.created_at)} · ${esc(STATUS[s.status] || s.status)}${s.paid_now && s.kind === 'debt' ? ' · сразу ' + money(s.paid_now) : ''}</small></span></li>`),
+    payments: a.payments_list.map(p => `<li><span><b>Вернул долг</b> · ${esc(p.customer || '')}</span><span class="num">+${money(p.amount)}<br><small>${when(p.created_at)} · ${p.method === 'kaspi' ? 'Kaspi' : 'наличные'}</small></span></li>`),
+    reminders: a.reminders_list.map(r => `<li><span><b>Напоминание</b> · ${esc(r.customer || '')}</span><span><small>${esc(r.status === "sent" ? "отправлено" : "черновик")} · ${when(r.sent_at)}</small></span><small style="grid-column:1/-1">${esc(r.text)}…</small></li>`),
+  };
+  const tab = keepTab || 'sales';
+  $('panel').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
+      <div><h2 id="pTitle">${esc(a.full_name)}</h2><p class="sub">${esc(a.email)} · зарегистрирован ${when(a.created_at)} · последний вход ${when(a.last_login)} · активных входов: ${a.sessions}</p>
+        <p>${a.is_blocked ? '<span class="tag bad">заблокирован</span>' : '<span class="tag ok">активен</span>'}${a.is_demo ? '<span class="tag demo">демо — удалить и заблокировать нельзя</span>' : ''}${a.tg_linked ? '<span class="tag muted">Telegram подключён</span>' : ''}</p></div>
+      <button type="button" id="pClose">Закрыть</button>
+    </div>
+    <div class="stats">
+      <div><span>Товаров</span><b>${a.products}</b></div><div><span>Покупателей</span><b>${a.customers}</b></div>
+      <div><span>Продаж</span><b>${a.sales}</b></div><div><span>Долги</span><b>${money(a.debt)}</b></div>
+    </div>
+    <form class="card" id="editForm" style="display:grid;gap:10px">
+      <b>Изменить данные</b>
+      <div class="grid2">
+        <label>ФИО<input name="full_name" value="${esc(a.full_name)}" required minlength="3"></label>
+        <label>Телефон<input name="phone" value="${esc(a.phone)}" placeholder="+7 7XX XXX XX XX"></label>
+        <label>Название магазина<input name="shop_name" value="${esc(a.shop_name || '')}"></label>
+        <label>Ставка сервиса, %<input name="rate" type="number" min="0.5" max="2" step="0.1" value="${+((a.service_rate || 0.01) * 100).toFixed(2)}"></label>
+      </div>
+      <button class="primary" type="submit">Сохранить изменения</button>
+    </form>
+    <div class="card" style="display:grid;gap:10px">
+      <b>Доступ</b>
+      <div class="actions">
+        ${a.is_demo ? '<p class="sub">Демо-аккаунт общий: пароль, блокировка и удаление недоступны.</p>' : `<button type="button" id="pReset">Сбросить пароль</button><button type="button" id="pBlock" class="${a.is_blocked ? '' : 'danger'}">${a.is_blocked ? 'Разблокировать' : 'Заблокировать'}</button>
+        <button type="button" id="pDelete" class="danger">Удалить аккаунт и данные</button>`}
+      </div>
+      <div id="pSecret"></div>
+    </div>
+    <div class="card" style="display:grid;gap:10px">
+      <div class="htabs"><button type="button" data-h="sales">Продажи (${a.sales_list.length})</button><button type="button" data-h="payments">Оплаты (${a.payments_list.length})</button><button type="button" data-h="reminders">Напоминания (${a.reminders_list.length})</button></div>
+      <ul class="hist" id="hist"></ul>
+    </div>`;
+  $('drawer').hidden = false; $('panel').focus();
+  const showHist = h => {
+    document.querySelectorAll('[data-h]').forEach(b => b.classList.toggle('on', b.dataset.h === h));
+    $('hist').innerHTML = hist[h].join('') || '<li class="empty">Пусто</li>';
+  };
+  document.querySelectorAll('[data-h]').forEach(b => b.onclick = () => showHist(b.dataset.h));
+  showHist(tab);
+  $('pClose').onclick = closeDrawer;
+  $('editForm').onsubmit = async e => {
+    e.preventDefault(); const f = e.target.elements;
+    try {
+      await api('/api/admin/accounts/' + id, { method: 'PUT', body: { full_name: f.full_name.value, phone: f.phone.value, shop_name: f.shop_name.value, service_rate: Number(f.rate.value) / 100 } });
+      toast('Сохранено'); refresh(); openAccount(id);
+    } catch (err) { toast(err.message, true); }
+  };
+  if ($('pReset')) $('pReset').onclick = async () => {
+    if (!confirm(`Сбросить пароль для ${a.email}? Пользователь выйдет со всех устройств.`)) return;
+    try {
+      const r = await api(`/api/admin/accounts/${id}/password`, { method: 'POST', body: {} });
+      $('pSecret').innerHTML = `<div class="secret"><span>Временный пароль (виден один раз):<br><b>${esc(r.password)}</b></span><button type="button" id="pCopy">Копировать</button></div>`;
+      $('pCopy').onclick = () => navigator.clipboard.writeText(r.password).then(() => toast('Скопировано'));
+    } catch (err) { toast(err.message, true); }
+  };
+  if ($('pBlock')) $('pBlock').onclick = async () => {
+    const block = !a.is_blocked;
+    if (block && !confirm(`Заблокировать ${a.email}? Он не сможет войти, пока вы не разблокируете.`)) return;
+    try { await api(`/api/admin/accounts/${id}/block`, { method: 'POST', body: { blocked: block } }); toast(block ? 'Заблокирован' : 'Разблокирован'); refresh(); openAccount(id); }
+    catch (err) { toast(err.message, true); }
+  };
+  if ($('pDelete')) $('pDelete').onclick = async () => {
+    const typed = prompt(`Удалить аккаунт и ВСЕ данные магазина навсегда?\nДля подтверждения впишите email: ${a.email}`);
+    if (typed === null) return;
+    if (typed.trim().toLowerCase() !== a.email) { toast('Email не совпал — ничего не удалено', true); return; }
+    try { await api('/api/admin/accounts/' + id, { method: 'DELETE' }); toast('Аккаунт удалён'); closeDrawer(); refresh(); }
+    catch (err) { toast(err.message, true); }
+  };
+}
+
+// ---------- маршрутизация ----------
+function refresh() { (location.hash === '#overview' ? overview : accountsPage)().catch(err => toast(err.message, true)); }
+function route() {
+  const tab = location.hash === '#overview' ? 'overview' : 'accounts';
+  document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.dataset.tab === tab));
+  refresh();
+}
+window.addEventListener('hashchange', route);
+$('logout').onclick = async () => { await fetch('/api/auth/logout', { method: 'POST' }); location.href = '/login'; };
+if (!location.hash) location.hash = '#overview'; else route();
+</script>
+</body>
+</html>

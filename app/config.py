@@ -24,3 +24,7 @@ PUBLIC_URL = (os.getenv("PUBLIC_URL") or os.getenv("RENDER_EXTERNAL_URL") or "")
 # Секрет, по которому сервер узнаёт, что запрос на /tg/webhook пришёл именно от Telegram
 import hashlib as _hashlib
 WEBHOOK_SECRET = _hashlib.sha256(("daptar-webhook:" + BOT_TOKEN).encode()).hexdigest()[:48] if BOT_TOKEN else ""
+
+# Единственный администратор. Логин и пароль — только в .env / настройках сервера, в коде их нет.
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "").strip().lower()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
